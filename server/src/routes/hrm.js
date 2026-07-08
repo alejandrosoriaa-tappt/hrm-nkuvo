@@ -43,11 +43,13 @@ const recruiterDetailLimit = rateLimit({
 })
 
 // ── Directorio de reclutadoras ────────────────────────────────────────────
-// La lista NUNCA devuelve email/teléfono — anti-copia.
+// La lista NUNCA devuelve email/teléfono/sitio_web — anti-copia. El sitio
+// web permitiría rodear el paywall (buscar el contacto directo desde ahí
+// sin gastar ninguna de las 5 gratis ni pagar Pro).
 router.get('/recruiters', async (req, res) => {
   const { data, error } = await supabase
     .from('hrm_recruiters')
-    .select('id, nombre, industria, sitio_web, ciudad')
+    .select('id, nombre, industria, ciudad')
     .order('nombre')
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
@@ -69,7 +71,7 @@ router.get('/recruiters/:id', recruiterDetailLimit, async (req, res) => {
   if (error || !recruiter) return res.status(404).json({ error: 'No encontrada' })
 
   // 2. Suscripción del usuario
-  const isPro = await isProUser(supabase, userId)
+  const isPro = await isProUser(supabase, userId, req.user.email)
 
   // 3. ¿Ya la desbloqueó antes?
   const { data: existing } = await supabase
@@ -98,8 +100,9 @@ router.get('/recruiters/:id', recruiterDetailLimit, async (req, res) => {
   }
 
   if (!canSeeContact) {
-    // Ocultar datos de contacto — devolver el resto
-    const { email: _, telefono: __, ...publicData } = recruiter
+    // Ocultar datos de contacto (incluye sitio_web — desde ahí se podría
+    // encontrar el contacto directo sin gastar el desbloqueo)
+    const { email: _, telefono: __, sitio_web: ___, ...publicData } = recruiter
     return res.json({ ...publicData, _contactLocked: true })
   }
 
@@ -121,7 +124,7 @@ router.get('/contacts', async (req, res) => {
     .order('updated_at', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
 
-  const isPro = await isProUser(supabase, userId)
+  const isPro = await isProUser(supabase, userId, req.user.email)
 
   let unlockedIds = new Set()
   if (!isPro) {
@@ -152,7 +155,7 @@ router.post('/contacts', async (req, res) => {
   const userId = req.user.id
   const recruiterId = req.body.recruiter_id
 
-  const isPro = await isProUser(supabase, userId)
+  const isPro = await isProUser(supabase, userId, req.user.email)
   if (!isPro) {
     const { data: unlocked } = await supabase
       .from('hrm_unlocked_recruiters')
@@ -500,7 +503,7 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
 router.post('/cvs/:id/rewrite', async (req, res) => {
   const userId = req.user.id
 
-  const isPro = await isProUser(supabase, userId)
+  const isPro = await isProUser(supabase, userId, req.user.email)
   if (!isPro) {
     return res.status(403).json({ error: 'Reescritura con IA disponible en el plan Pro.', locked: true })
   }
@@ -602,12 +605,18 @@ router.put('/appointments/:id', async (req, res) => {
 
 // ── Suscripción ───────────────────────────────────────────────────────────
 router.get('/subscription', async (req, res) => {
+  const isDemoPro = await isProUser(supabase, req.user.id, req.user.email)
+
   const { data, error } = await supabase
     .from('hrm_subscriptions')
     .select('*')
     .eq('user_id', req.user.id)
     .maybeSingle()
   if (error) return res.status(500).json({ error: error.message })
+
+  if (isDemoPro && data?.status !== 'active') {
+    return res.json({ ...(data || {}), status: 'active', plan: 'demo' })
+  }
   res.json(data || { status: 'free' })
 })
 

@@ -64,7 +64,6 @@ export default function ReclutadorasPage() {
   // y el usuario no es Pro — úsalo para bloquear también "Agregar a
   // seguimiento" en vez de solo inferir del email/telefono presentes.
   const isLocked = selected?._contactLocked === true
-  const hasContact = selected && (selected.email || selected.telefono)
 
   return (
     <>
@@ -110,7 +109,6 @@ export default function ReclutadorasPage() {
                     <th>Nombre</th>
                     <th>Industria</th>
                     <th>Ciudad</th>
-                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -126,16 +124,6 @@ export default function ReclutadorasPage() {
                       </td>
                       <td style={{ color: 'var(--md-on-surface-variant)', fontSize: '0.8125rem' }}>
                         {r.ciudad || '—'}
-                      </td>
-                      <td>
-                        {r.sitio_web && (
-                          <a href={r.sitio_web} target="_blank" rel="noreferrer"
-                             className="btn btn-ghost btn-icon btn-sm"
-                             onClick={e => e.stopPropagation()}
-                             title="Sitio web">
-                            <Globe size={14} />
-                          </a>
-                        )}
                       </td>
                     </tr>
                   ))}
@@ -178,22 +166,20 @@ export default function ReclutadorasPage() {
                       </a>
                     </InfoRow>
                   )}
-                  {selected.email ? (
+                  {isLocked ? (
+                    <div className="alert alert-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem', padding: '0.5rem 0.75rem' }}>
+                      <span>Contacto disponible para primeros 5 reclutadores o con plan Pro</span>
+                      <Link to="/app/membresia" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start' }}>
+                        <CreditCard size={13} /> Suscribirme
+                      </Link>
+                    </div>
+                  ) : selected.email ? (
                     <InfoRow icon={<Mail size={14} />}>
                       <a href={`mailto:${selected.email}`} style={{ color: 'var(--md-primary)', fontSize: '0.8125rem' }}>
                         {selected.email}
                       </a>
                     </InfoRow>
-                  ) : (
-                    <div className="alert alert-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem', padding: '0.5rem 0.75rem' }}>
-                      <span>Contacto disponible para primeros 5 reclutadores o con plan Pro</span>
-                      {sub?.status !== 'active' && (
-                        <Link to="/app/membresia" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start' }}>
-                          <CreditCard size={13} /> Suscribirme
-                        </Link>
-                      )}
-                    </div>
-                  )}
+                  ) : null}
                   {selected.telefono && (
                     <InfoRow icon={<Phone size={14} />}>
                       <span style={{ fontSize: '0.8125rem' }}>{selected.telefono}</span>

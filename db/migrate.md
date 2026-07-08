@@ -53,6 +53,11 @@ SUPABASE_URL=https://<proyecto>.supabase.co
 SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
+# Cuentas demo (para ventas/redes): estos correos se tratan como Pro sin
+# pasar por Clip. Deben registrarse normal en /signup, y una vez con ese
+# correo en la lista, ven todo desbloqueado automáticamente.
+DEMO_EMAILS=demo1@nkuvo.com,demo2@nkuvo.com
+
 # SMTP (para envío de CVs por correo)
 SMTP_HOST=smtp.gmail.com       # o tu proveedor
 SMTP_PORT=587

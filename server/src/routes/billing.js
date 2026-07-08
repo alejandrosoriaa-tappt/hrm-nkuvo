@@ -19,6 +19,7 @@
 import { Router } from 'express'
 import { createClient } from '@supabase/supabase-js'
 import { authMiddleware } from '../middleware/auth.js'
+import { isProUser } from '../lib/subscription.js'
 
 const router = Router()
 
@@ -39,6 +40,12 @@ const CLIP_WEBHOOK_SECRET = process.env.CLIP_WEBHOOK_SECRET
 
 // ── GET /status ───────────────────────────────────────────────────────────
 router.get('/status', authMiddleware, async (req, res) => {
+  // Cuentas demo (DEMO_EMAILS en Railway): Pro sin pasar por Clip.
+  const isDemoPro = await isProUser(supabase, req.user.id, req.user.email)
+  if (isDemoPro) {
+    return res.json({ status: 'active', plan: 'demo', isActive: true, isFree: false })
+  }
+
   const { data, error } = await supabase
     .from('hrm_subscriptions')
     .select('status, plan, current_period_end, clip_customer_email, cancel_requested_at')
