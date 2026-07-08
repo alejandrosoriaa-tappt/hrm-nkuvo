@@ -47,11 +47,16 @@ create table if not exists hrm_appointments (
 );
 
 create table if not exists hrm_subscriptions (
-  user_id       uuid primary key references auth.users(id) on delete cascade,
-  status        text not null default 'free' check (status in ('free','active','cancelled','past_due')),
-  plan          text default 'basico',       -- $299 MXN/mes acordado como ancla inicial
-  current_period_end timestamptz,
-  updated_at    timestamptz default now()
+  user_id             uuid primary key references auth.users(id) on delete cascade,
+  status              text not null default 'free'
+                        check (status in ('free','active','cancelled','past_due')),
+  plan                text default 'suscripcion_mensual', -- único plan: $299 MXN/mes vía Clip
+  current_period_end  timestamptz,
+  -- Referencias de Clip (nunca almacenamos datos de tarjeta)
+  clip_order_id       text,        -- ID del pago/orden en Clip (del postback webhook)
+  clip_customer_email text,        -- correo con que el usuario se suscribió en Clip
+  cancel_requested_at timestamptz, -- cuándo el usuario solicitó cancelar
+  updated_at          timestamptz default now()
 );
 
 -- ── Sesión única por dispositivo ─────────────────────────────────────────
@@ -88,6 +93,17 @@ create policy "own_contacts" on hrm_contacts for all using (auth.uid() = user_id
 create policy "own_cvs" on hrm_cvs for all using (auth.uid() = user_id);
 create policy "own_appointments" on hrm_appointments for all using (auth.uid() = user_id);
 create policy "own_subscription" on hrm_subscriptions for select using (auth.uid() = user_id);
+
+-- Migración: columnas de Clip agregadas después del schema inicial
+-- (seguro correr aunque ya existan, IF NOT EXISTS no aplica a columnas en PG < 15,
+--  pero el bloque DO lo maneja)
+do $$ begin
+  begin alter table hrm_subscriptions add column clip_order_id       text;       exception when duplicate_column then null; end;
+  begin alter table hrm_subscriptions add column clip_customer_email text;       exception when duplicate_column then null; end;
+  begin alter table hrm_subscriptions add column cancel_requested_at timestamptz; exception when duplicate_column then null; end;
+  begin alter table hrm_subscriptions drop column if exists plan; exception when undefined_column then null; end;
+  begin alter table hrm_subscriptions add column plan text default 'suscripcion_mensual'; exception when duplicate_column then null; end;
+end $$;
 
 alter table hrm_sessions enable row level security;
 create policy "own_session" on hrm_sessions for all using (auth.uid() = user_id);

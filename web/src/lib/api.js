@@ -81,8 +81,13 @@ export const hrmAPI = {
   // Envío de correo con CV adjunto
   sendCvEmail:           (data)      => api.post('/api/hrm/emails/send-cv', data),
 
-  // Suscripción
+  // Suscripción (estado simple — usado en Resumen y Reclutadoras)
   getSubscription:       ()          => api.get('/api/hrm/subscription'),
+
+  // Billing Clip
+  getBillingStatus:      ()          => api.get('/api/hrm/billing/status'),
+  startCheckout:         ()          => api.post('/api/hrm/billing/checkout'),
+  cancelSubscription:    ()          => api.post('/api/hrm/billing/cancel'),
 }
 
 export default api

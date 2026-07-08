@@ -7,6 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import hrmRoutes from './routes/hrm.js'
 import authRoutes from './routes/auth.js'
+import billingRoutes from './routes/billing.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -18,6 +19,7 @@ app.use(rateLimit({ windowMs: 60_000, max: 120 }))
 
 app.use('/api/hrm', hrmRoutes)
 app.use('/api/auth', authRoutes)
+app.use('/api/hrm/billing', billingRoutes)
 
 app.get('/health', (req, res) => res.json({ ok: true }))
 

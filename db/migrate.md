@@ -60,8 +60,30 @@ SMTP_SECURE=false
 SMTP_USER=tu@email.com
 SMTP_PASS=tu_app_password      # Gmail: contraseña de aplicación, no la de cuenta
 
+# Clip (billing)
+# Link de suscripción generado desde el dashboard de Clip
+CLIP_SUBSCRIPTION_LINK=https://pago.clip.mx/v2/suscripcion/eaadea41-f533-4902-8fb3-a1836c57b83f
+# Secret para proteger el endpoint de webhook (pon cualquier string largo y aleatorio)
+CLIP_WEBHOOK_SECRET=cambia_esto_por_un_secret_aleatorio
+
 # (Opcional) dominio custom
 PORT=3000
+```
+
+## Configurar el Postback Webhook en Clip
+
+1. Entra al dashboard de Clip → **Panel de desarrolladores** → **Postback Webhook**
+2. Agrega la URL:
+   ```
+   https://hrm.nkuvo.com/api/hrm/billing/webhook?secret=<TU_CLIP_WEBHOOK_SECRET>
+   ```
+3. Guarda. Clip enviará notificaciones a esa URL cada vez que haya un pago exitoso,
+   renovación, fallo o cancelación.
+
+> **Cancelaciones manuales**: cuando un usuario solicite cancelar desde la app,
+> recibirás la notificación y debes entrar al panel de Clip >
+> Pagos Recurrentes > encontrar al suscriptor > Eliminar de la suscripción.
+> El equipo de soporte de NKUVO lo atiende vía WhatsApp (wa.me/5215658732336).
 ```
 
 ## Datos iniciales de reclutadoras
