@@ -1,0 +1,15 @@
+[build]
+# Compila el frontend (web/dist) y luego instala deps del servidor.
+# El servidor hace express.static sobre web/dist — un solo servicio en Railway.
+builder = "NIXPACKS"
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/health"
+healthcheckTimeout = 10
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "hrm-nkuvo"

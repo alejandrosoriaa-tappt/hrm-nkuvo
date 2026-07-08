@@ -1,0 +1,14 @@
+{
+  "name": "hrm-nkuvo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "npm ci --prefix web && npm run build --prefix web && npm ci --prefix server",
+    "start": "node server/src/index.js",
+    "dev:server": "npm run dev --prefix server",
+    "dev:web": "npm run dev --prefix web"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
