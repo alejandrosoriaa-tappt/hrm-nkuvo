@@ -71,7 +71,7 @@ export const hrmAPI = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   deleteCv:              (id)        => api.delete(`/api/hrm/cvs/${id}`),
-  checkCvAts:            (id, jd)    => api.post(`/api/hrm/cvs/${id}/ats-check`, { jobDescription: jd }),
+  checkCvAts:            (id)        => api.post(`/api/hrm/cvs/${id}/ats-check`),
 
   // Agenda / citas
   listAppointments:      (params)    => api.get('/api/hrm/appointments', { params }),

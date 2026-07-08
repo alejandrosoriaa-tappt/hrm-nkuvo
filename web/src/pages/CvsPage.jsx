@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { Upload, Trash2, Sparkles, FileText, CheckCircle2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Upload, Trash2, Sparkles, FileText, CheckCircle2, XCircle, Lock, CreditCard } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 const MAX_CVS = 5
@@ -10,7 +11,6 @@ export default function CvsPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [atsModal, setAtsModal] = useState(null)
-  const [atsJob, setAtsJob] = useState('')
   const [atsLoading, setAtsLoading] = useState(false)
   const [atsResult, setAtsResult] = useState(null)
   const [cvName, setCvName] = useState('')
@@ -68,14 +68,14 @@ export default function CvsPage() {
     }
   }
 
-  const handleAts = async (e) => {
-    e.preventDefault()
-    if (!atsModal || !atsJob.trim()) return
-    setAtsLoading(true)
+  const runAtsCheck = async (cv) => {
+    setAtsModal(cv)
     setAtsResult(null)
+    setAtsLoading(true)
     try {
-      const r = await hrmAPI.checkCvAts(atsModal.id, atsJob)
+      const r = await hrmAPI.checkCvAts(cv.id)
       setAtsResult(r.data)
+      load()
     } catch (err) {
       setAtsResult({ error: err.response?.data?.error || err.message })
     } finally {
@@ -173,8 +173,8 @@ export default function CvsPage() {
               <div style={{ display: 'flex', gap: '0.25rem' }}>
                 <button
                   className="btn btn-outline btn-sm"
-                  onClick={() => { setAtsModal(cv); setAtsJob(''); setAtsResult(null) }}
-                  title="Verificar contra descripción de puesto"
+                  onClick={() => runAtsCheck(cv)}
+                  title="Revisar formato para ATS"
                 >
                   <Sparkles size={14} />
                   ATS check
@@ -204,97 +204,92 @@ export default function CvsPage() {
           <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">ATS Check — {atsModal.nombre}</h2>
             <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '1.25rem' }}>
-              Pega la descripción del puesto y compararemos las keywords contra tu CV.
+              Revisión de formato: qué tan legible es tu CV para un sistema ATS,
+              sin importar a qué vacante específica lo mandes.
             </p>
 
-            <form onSubmit={handleAts} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="input-group">
-                <label className="input-label">Descripción del puesto</label>
-                <textarea
-                  className="input"
-                  placeholder="Pega aquí los requisitos y responsabilidades del rol…"
-                  value={atsJob}
-                  onChange={e => setAtsJob(e.target.value)}
-                  rows={6}
-                  required
-                />
+            {atsLoading && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+                <div className="spinner" />
               </div>
+            )}
 
-              {atsResult && !atsResult.error && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {/* Score */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '1rem',
-                    padding: '1rem', borderRadius: 12,
-                    background: 'var(--md-surface-container-low)'
-                  }}>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 800, color: scoreColor(atsResult.score), lineHeight: 1 }}>
-                      {atsResult.score}%
-                    </div>
-                    <div>
-                      <p style={{ fontWeight: 600 }}>ATS Score</p>
-                      <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
-                        {atsResult.matchedKeywords?.length || 0} de {atsResult.totalKeywords || 0} keywords
-                      </p>
-                    </div>
+            {atsResult && !atsResult.error && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Score */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '1rem',
+                  padding: '1rem', borderRadius: 12,
+                  background: 'var(--md-surface-container-low)'
+                }}>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 800, color: scoreColor(atsResult.score), lineHeight: 1 }}>
+                    {atsResult.score}%
                   </div>
-
-                  {/* Keywords encontradas */}
-                  {atsResult.matchedKeywords?.length > 0 && (
-                    <div>
-                      <p style={{ fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.5rem', color: '#15803D' }}>
-                        ✓ Keywords presentes
-                      </p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-                        {atsResult.matchedKeywords.map(k => (
-                          <span key={k} className="chip chip-success">{k}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Keywords faltantes */}
-                  {atsResult.missingKeywords?.length > 0 && (
-                    <div>
-                      <p style={{ fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--md-error)' }}>
-                        ✗ Keywords faltantes (considera agregarlas)
-                      </p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-                        {atsResult.missingKeywords.map(k => (
-                          <span key={k} className="chip chip-error">{k}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Sugerencias de estructura */}
-                  {atsResult.suggestions?.length > 0 && (
-                    <div>
-                      <p style={{ fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                        💡 Sugerencias de estructura
-                      </p>
-                      <ul style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        {atsResult.suggestions.map((s, i) => (
-                          <li key={i} style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>{s}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  <div>
+                    <p style={{ fontWeight: 600 }}>ATS Score de formato</p>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
+                      {atsResult.passedChecks} de {atsResult.totalChecks} checks pasados
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              {atsResult?.error && (
-                <div className="alert alert-error">{atsResult.error}</div>
-              )}
+                {/* Checks */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                  {atsResult.results?.map((r, i) => (
+                    <div key={i} style={{
+                      padding: '0.75rem', borderRadius: 10,
+                      background: r.passed ? 'transparent' : 'var(--md-surface-container-low)',
+                      border: '1px solid var(--md-outline-variant)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        {r.passed
+                          ? <CheckCircle2 size={16} style={{ color: '#15803D', flexShrink: 0, marginTop: 1 }} />
+                          : <XCircle size={16} style={{ color: 'var(--md-error)', flexShrink: 0, marginTop: 1 }} />}
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: '0.8125rem', fontWeight: 600 }}>{r.name}</p>
+                          {!r.passed && r.issue && (
+                            <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: 2 }}>
+                              {r.issue}
+                            </p>
+                          )}
+                          {!r.passed && r.fix && (
+                            <p style={{ fontSize: '0.75rem', color: 'var(--md-primary)', marginTop: 4, display: 'flex', gap: '0.375rem' }}>
+                              <Sparkles size={12} style={{ flexShrink: 0, marginTop: 2 }} />
+                              {r.fix}
+                            </p>
+                          )}
+                          {!r.passed && r.fix === undefined && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: 4, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                              <Lock size={12} style={{ flexShrink: 0 }} />
+                              Cómo arreglarlo — disponible con plan Pro
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-              <div className="modal-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setAtsModal(null)}>Cerrar</button>
-                <button type="submit" className="btn btn-primary" disabled={atsLoading}>
-                  {atsLoading ? <span className="spinner spinner-sm" /> : <Sparkles size={15} />}
-                  {atsLoading ? 'Analizando…' : 'Analizar'}
-                </button>
+                {!atsResult.isPro && atsResult.results?.some(r => !r.passed) && (
+                  <div className="alert alert-info" style={{ flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+                    <p style={{ fontSize: '0.8125rem' }}>
+                      Suscríbete a Pro para ver exactamente cómo corregir cada problema detectado.
+                    </p>
+                    <Link to="/app/membresia" className="btn btn-primary btn-sm">
+                      <CreditCard size={13} /> Suscribirme
+                    </Link>
+                  </div>
+                )}
               </div>
-            </form>
+            )}
+
+            {atsResult?.error && (
+              <div className="alert alert-error">{atsResult.error}</div>
+            )}
+
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setAtsModal(null)}>Cerrar</button>
+            </div>
           </div>
         </div>
       )}

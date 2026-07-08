@@ -313,25 +313,24 @@ router.delete('/cvs/:id', async (req, res) => {
   res.status(204).end()
 })
 
-// ATS Check — parsea el CV y compara keywords contra la descripción del puesto.
-// Estrategia simple pero efectiva:
-//   1. Descarga el archivo de Storage
-//   2. Extrae texto (pdf-parse para PDF, mammoth para DOCX)
-//   3. Extrae keywords de la descripción del puesto (tokenización simple)
-//   4. Calcula % de coincidencia
-//   5. Sugiere secciones estándar faltantes
+// ATS Check — analiza el FORMATO del CV, no su contenido/relevancia.
+// A propósito no pide descripción de puesto: al subir el CV el candidato
+// todavía no sabe a qué vacante específica va a aplicar, así que no hay
+// nada contra qué comparar keywords. Lo que sí podemos evaluar sin esa
+// info es si la estructura del archivo es legible por un ATS cualquiera:
+// secciones estándar, contacto detectable, tablas/columnas, longitud, etc.
+//
+// El score y la lista de problemas encontrados son gratis. El "cómo
+// arreglarlo" (fix) de cada problema se oculta detrás del plan Pro.
 router.post('/cvs/:id/ats-check', async (req, res) => {
-  const { jobDescription } = req.body
-  if (!jobDescription?.trim()) {
-    return res.status(400).json({ error: 'Falta jobDescription' })
-  }
+  const userId = req.user.id
 
   // Obtener el CV
   const { data: cv, error: fetchErr } = await supabase
     .from('hrm_cvs')
     .select('*')
     .eq('id', req.params.id)
-    .eq('user_id', req.user.id)
+    .eq('user_id', userId)
     .single()
   if (fetchErr || !cv) return res.status(404).json({ error: 'CV no encontrado' })
 
@@ -364,51 +363,91 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
     return res.status(500).json({ error: 'Error extrayendo texto del CV' })
   }
 
-  // Extraer keywords de la descripción del puesto
-  const stopwords = new Set([
-    'de','la','el','en','y','a','los','las','con','se','su','un','una','para',
-    'por','al','del','que','es','son','lo','le','o','e','como','no','si','ya',
-    'pero','más','te','me','mi','tu','we','the','a','an','and','or','of','to',
-    'in','is','for','with','that','this','are','be','on','at','by','from','as'
-  ])
-
-  const tokenize = (text) =>
-    text.toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 3 && !stopwords.has(w))
-
-  const jobKeywords = [...new Set(tokenize(jobDescription))]
-  const cvWords = new Set(tokenize(cvText))
-
-  const matchedKeywords = jobKeywords.filter(k => cvWords.has(k))
-  const missingKeywords = jobKeywords.filter(k => !cvWords.has(k)).slice(0, 20)
-
-  const score = jobKeywords.length > 0
-    ? Math.round((matchedKeywords.length / jobKeywords.length) * 100)
-    : 0
-
-  // Detectar secciones estándar faltantes en el CV
   const cvTextLower = cvText.toLowerCase()
-  const sections = [
-    { name: 'experiencia',  keywords: ['experiencia', 'experience', 'trabajo', 'empleo'] },
-    { name: 'educación',    keywords: ['educación', 'education', 'formación', 'universidad', 'licenciatura'] },
-    { name: 'habilidades',  keywords: ['habilidades', 'skills', 'competencias', 'aptitudes'] },
-    { name: 'contacto',     keywords: ['email', 'teléfono', 'linkedin', 'correo'] },
-    { name: 'logros',       keywords: ['logros', 'achievements', 'resultados', 'impacto'] },
-  ]
+  const wordCount = (cvText.match(/\S+/g) || []).length
 
-  const suggestions = []
+  // Cada check evalúa un aspecto de FORMATO (no de contenido/relevancia).
+  // "fix" solo se manda al cliente si el usuario tiene plan Pro.
+  const checks = []
+
+  const sections = [
+    { name: 'Experiencia', keywords: ['experiencia', 'experience', 'trabajo', 'empleo'] },
+    { name: 'Educación',   keywords: ['educación', 'education', 'formación', 'universidad', 'licenciatura'] },
+    { name: 'Habilidades', keywords: ['habilidades', 'skills', 'competencias', 'aptitudes'] },
+  ]
   sections.forEach(s => {
-    if (!s.keywords.some(k => cvTextLower.includes(k))) {
-      suggestions.push(`Agrega una sección de "${s.name}" a tu CV`)
-    }
+    const passed = s.keywords.some(k => cvTextLower.includes(k))
+    checks.push({
+      name: `Sección "${s.name}"`,
+      passed,
+      issue: passed ? null : `No se detectó una sección de ${s.name.toLowerCase()}.`,
+      fix: passed ? null : `Agrega un encabezado claro llamado "${s.name}" — los ATS buscan estos títulos estándar para clasificar tu información.`,
+    })
   })
 
-  // Advertencia sobre tablas/columnas (problemáticas para ATS)
-  if (cvTextLower.includes('\t') || (cvText.match(/\s{5,}/g) || []).length > 10) {
-    suggestions.push('Evita tablas o columnas múltiples — los ATS tienen dificultades para leerlas')
-  }
+  // Contacto detectable: email y teléfono con formato reconocible
+  const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(cvText)
+  checks.push({
+    name: 'Correo electrónico detectable',
+    passed: hasEmail,
+    issue: hasEmail ? null : 'No se encontró un correo electrónico con formato reconocible.',
+    fix: hasEmail ? null : 'Escribe tu correo como texto plano (no como imagen) cerca del encabezado, ej: nombre@correo.com.',
+  })
+
+  const hasPhone = /(\+?\d[\d\s-]{8,14}\d)/.test(cvText)
+  checks.push({
+    name: 'Teléfono detectable',
+    passed: hasPhone,
+    issue: hasPhone ? null : 'No se encontró un número de teléfono con formato reconocible.',
+    fix: hasPhone ? null : 'Incluye tu celular en un solo bloque de texto, ej: 442 123 4567, sin separarlo con símbolos raros.',
+  })
+
+  // Tablas/columnas múltiples — los parsers de texto de los ATS las desordenan
+  const looksLikeTables = cvTextLower.includes('\t') || (cvText.match(/\s{5,}/g) || []).length > 10
+  checks.push({
+    name: 'Sin tablas o columnas múltiples',
+    passed: !looksLikeTables,
+    issue: looksLikeTables ? 'El CV parece usar tablas o columnas múltiples.' : null,
+    fix: looksLikeTables ? 'Evita tablas y diseños de dos columnas — cuando un ATS los lee como texto plano, el orden de la información se rompe. Usa un diseño de una sola columna.' : null,
+  })
+
+  // Longitud razonable — muy corto (falta info) o excesivo (dificulta el parseo/lectura)
+  const lengthOk = wordCount >= 150 && wordCount <= 1200
+  checks.push({
+    name: 'Longitud adecuada',
+    passed: lengthOk,
+    issue: lengthOk ? null : wordCount < 150
+      ? 'El CV es muy corto — puede faltar información clave.'
+      : 'El CV es muy extenso — los ATS y reclutadores priorizan CVs concisos.',
+    fix: lengthOk ? null : wordCount < 150
+      ? 'Agrega detalle a tu experiencia y educación — un CV de 1 página suele tener entre 300 y 600 palabras.'
+      : 'Recorta a lo más relevante de los últimos 10 años. Apunta a 1-2 páginas (aprox. 400-800 palabras).',
+  })
+
+  // Fechas en experiencia — sin años, un ATS no puede armar tu cronología
+  const hasDates = /\b(19|20)\d{2}\b/.test(cvText)
+  checks.push({
+    name: 'Fechas de experiencia',
+    passed: hasDates,
+    issue: hasDates ? null : 'No se detectaron años en tu historial de experiencia.',
+    fix: hasDates ? null : 'Incluye mes y año de inicio/fin en cada puesto (ej: "Ene 2022 – Presente") para que el ATS arme tu línea de tiempo.',
+  })
+
+  const passedCount = checks.filter(c => c.passed).length
+  const score = Math.round((passedCount / checks.length) * 100)
+
+  // ¿El usuario tiene plan Pro? Solo Pro ve el "fix" de cada problema.
+  const { data: sub } = await supabase
+    .from('hrm_subscriptions')
+    .select('status')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const isPro = sub?.status === 'active'
+
+  const results = checks.map(({ fix, ...rest }) => ({
+    ...rest,
+    fix: isPro ? fix : (rest.passed ? null : undefined), // undefined = "bloqueado, suscríbete"
+  }))
 
   // Actualizar ats_score en BD
   await supabase
@@ -418,10 +457,10 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
 
   res.json({
     score,
-    totalKeywords: jobKeywords.length,
-    matchedKeywords: matchedKeywords.slice(0, 30),
-    missingKeywords,
-    suggestions,
+    totalChecks: checks.length,
+    passedChecks: passedCount,
+    results,
+    isPro,
   })
 })
 
