@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Upload, Trash2, Sparkles, FileText, CheckCircle2, XCircle, Lock, CreditCard } from 'lucide-react'
+import { Upload, Trash2, Sparkles, FileText, CheckCircle2, XCircle, Lock, CreditCard, AlertTriangle } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 const MAX_CVS = 5
@@ -83,9 +83,13 @@ export default function CvsPage() {
     }
   }
 
+  // Criterio duro a propósito: un reclutador solo revisa una fracción de
+  // los CVs que le llegan, así que cualquier score debajo del umbral (90)
+  // deja al candidato en desventaja — no hay "aprobado a medias".
+  const PASSING_SCORE = 90
   const scoreColor = (score) => {
-    if (score >= 70) return '#15803D'
-    if (score >= 40) return '#854D0E'
+    if (score >= PASSING_SCORE) return '#15803D'
+    if (score >= 70) return '#B45309'
     return 'var(--md-error)'
   }
 
@@ -166,7 +170,9 @@ export default function CvsPage() {
                   <div style={{ fontSize: '1.25rem', fontWeight: 700, color: scoreColor(cv.ats_score) }}>
                     {cv.ats_score}%
                   </div>
-                  <div style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)' }}>ATS score</div>
+                  <div style={{ fontSize: '0.6875rem', color: cv.ats_score >= PASSING_SCORE ? 'var(--md-on-surface-variant)' : 'var(--md-error)', fontWeight: cv.ats_score >= PASSING_SCORE ? 400 : 600 }}>
+                    {cv.ats_score >= PASSING_SCORE ? 'ATS score' : 'En desventaja'}
+                  </div>
                 </div>
               )}
 
@@ -231,6 +237,14 @@ export default function CvsPage() {
                       {atsResult.passedChecks} de {atsResult.totalChecks} checks pasados
                     </p>
                   </div>
+                </div>
+
+                {/* Veredicto crítico */}
+                <div className={atsResult.passesThreshold ? 'alert alert-success' : 'alert alert-error'} style={{ alignItems: 'flex-start' }}>
+                  {atsResult.passesThreshold
+                    ? <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                    : <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />}
+                  <span style={{ fontSize: '0.8125rem' }}>{atsResult.verdict}</span>
                 </div>
 
                 {/* Checks */}

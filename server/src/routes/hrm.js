@@ -454,8 +454,21 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
     .update({ ats_score: score })
     .eq('id', cv.id)
 
+  // Criterio duro a propósito: un reclutador solo alcanza a revisar una
+  // fracción de los CVs que le llegan a una vacante (a veces 10 de 100).
+  // Cualquier score debajo de PASSING_SCORE deja al candidato en
+  // desventaja frente a los que sí tienen el formato perfecto — no es un
+  // "aprobado/reprobado" suave, es competir por espacio en esa fracción.
+  const PASSING_SCORE = 90
+  const passesThreshold = score >= PASSING_SCORE
+
   res.json({
     score,
+    passingScore: PASSING_SCORE,
+    passesThreshold,
+    verdict: passesThreshold
+      ? 'Tu CV tiene el formato que un ATS espera — no lo está descartando de entrada.'
+      : `Por debajo de ${PASSING_SCORE}. Los reclutadores suelen revisar solo una fracción de los CVs que reciben (a veces 10 de 100) — con este formato tu CV queda en desventaja frente a los que sí están al 100%.`,
     totalChecks: checks.length,
     passedChecks: passedCount,
     results,
