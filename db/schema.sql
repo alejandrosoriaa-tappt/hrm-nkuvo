@@ -105,6 +105,13 @@ do $$ begin
   begin alter table hrm_subscriptions add column plan text default 'suscripcion_mensual'; exception when duplicate_column then null; end;
 end $$;
 
+-- Reescritura de CV con IA (Pro): cachea el último resultado para no
+-- regenerar con Claude cada vez que el usuario abre el modal.
+do $$ begin
+  begin alter table hrm_cvs add column rewrite_suggestions jsonb;         exception when duplicate_column then null; end;
+  begin alter table hrm_cvs add column rewrite_generated_at timestamptz;  exception when duplicate_column then null; end;
+end $$;
+
 alter table hrm_sessions enable row level security;
 create policy "own_session" on hrm_sessions for all using (auth.uid() = user_id);
 

@@ -5,6 +5,9 @@ import ExcelJS from 'exceljs'
 import rateLimit from 'express-rate-limit'
 import { authMiddleware } from '../middleware/auth.js'
 import { sessionMiddleware } from '../middleware/session.js'
+import { isProUser } from '../lib/subscription.js'
+import { extractCvText } from '../lib/cvText.js'
+import { anthropicEnabled, getAnthropicClient } from '../lib/anthropic.js'
 
 const router = Router()
 router.use(authMiddleware)
@@ -66,12 +69,7 @@ router.get('/recruiters/:id', recruiterDetailLimit, async (req, res) => {
   if (error || !recruiter) return res.status(404).json({ error: 'No encontrada' })
 
   // 2. Suscripción del usuario
-  const { data: sub } = await supabase
-    .from('hrm_subscriptions')
-    .select('status')
-    .eq('user_id', userId)
-    .maybeSingle()
-  const isPro = sub?.status === 'active'
+  const isPro = await isProUser(supabase, userId)
 
   // 3. ¿Ya la desbloqueó antes?
   const { data: existing } = await supabase
@@ -123,12 +121,7 @@ router.get('/contacts', async (req, res) => {
     .order('updated_at', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
 
-  const { data: sub } = await supabase
-    .from('hrm_subscriptions')
-    .select('status')
-    .eq('user_id', userId)
-    .maybeSingle()
-  const isPro = sub?.status === 'active'
+  const isPro = await isProUser(supabase, userId)
 
   let unlockedIds = new Set()
   if (!isPro) {
@@ -474,6 +467,81 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
     results,
     isPro,
   })
+})
+
+// Reescritura de CV con IA — Pro. A diferencia del ATS check (formato), aquí
+// SÍ generamos texto: sugerencias sección por sección para sonar más fuerte,
+// sin inventar experiencia que el candidato no tenga y sin perder su voz.
+// Nunca vender esto como "la IA es mejor que tu CV" — el ángulo es
+// "sonar como tú, no genérico" (instrucción explícita de producto/marketing).
+router.post('/cvs/:id/rewrite', async (req, res) => {
+  const userId = req.user.id
+
+  const isPro = await isProUser(supabase, userId)
+  if (!isPro) {
+    return res.status(403).json({ error: 'Reescritura con IA disponible en el plan Pro.', locked: true })
+  }
+
+  if (!anthropicEnabled()) {
+    return res.status(503).json({ error: 'Reescritura con IA no configurada todavía. Intenta más tarde.' })
+  }
+
+  const { data: cv, error: fetchErr } = await supabase
+    .from('hrm_cvs')
+    .select('*')
+    .eq('id', req.params.id)
+    .eq('user_id', userId)
+    .single()
+  if (fetchErr || !cv) return res.status(404).json({ error: 'CV no encontrado' })
+
+  let cvText = ''
+  try {
+    cvText = await extractCvText(supabase, cv)
+  } catch (err) {
+    console.error('CV rewrite text extraction error:', err)
+    return res.status(500).json({ error: err.message || 'Error extrayendo texto del CV' })
+  }
+
+  const contexto = (req.body?.contexto || '').toString().slice(0, 500)
+
+  const systemPrompt = `Eres un editor experto en CVs para candidatos en México. Tu trabajo es sugerir mejoras al CV que te comparten, sección por sección — NUNCA reescribes el documento completo de golpe.
+
+Reglas estrictas:
+- Nunca inventes experiencia, puestos, empresas, logros ni cifras que no estén ya en el CV original. Si algo no tiene un número, no le pongas uno inventado — en su lugar sugiere qué tipo de dato agregar.
+- Prioriza verbos de acción y logros cuantificables cuando el candidato ya los tenga implícitos.
+- El objetivo es que el candidato "suene como él mismo, más claro y con más impacto" — nunca genérico ni como si lo hubiera escrito una IA. Este NO es un ejercicio de "la IA escribe mejor que tú"; es pulir lo que ya escribiste.
+- Considera también legibilidad para ATS (Applicant Tracking Systems): secciones con encabezados estándar, sin depender de tablas/columnas.
+- Responde ÚNICAMENTE con JSON válido, sin texto antes ni después, con esta forma exacta:
+{"resumen": "string corto (2-3 frases) con el diagnóstico general", "sugerencias": [{"seccion": "string, ej. Experiencia - Gerente Comercial", "original": "fragmento original citado tal cual", "sugerido": "versión mejorada", "razon": "por qué este cambio ayuda"}]}`
+
+  const userPrompt = contexto
+    ? `Contexto del candidato sobre el puesto que busca: ${contexto}\n\nCV:\n${cvText}`
+    : `CV:\n${cvText}`
+
+  let aiResult
+  try {
+    const anthropic = getAnthropicClient()
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-5',
+      max_tokens: 3000,
+      temperature: 0.4,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    })
+    const rawText = message.content?.[0]?.text || ''
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+    aiResult = JSON.parse(jsonMatch ? jsonMatch[0] : rawText)
+  } catch (err) {
+    console.error('CV rewrite AI error:', err)
+    return res.status(500).json({ error: 'No se pudo generar la reescritura. Intenta de nuevo.' })
+  }
+
+  await supabase
+    .from('hrm_cvs')
+    .update({ rewrite_suggestions: aiResult, rewrite_generated_at: new Date().toISOString() })
+    .eq('id', cv.id)
+
+  res.json(aiResult)
 })
 
 // ── Agenda / citas ────────────────────────────────────────────────────────

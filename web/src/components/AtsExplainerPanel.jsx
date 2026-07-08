@@ -9,6 +9,25 @@ export default function AtsExplainerPanel() {
       <h2 className="auth-info-title">
         Revisamos el formato de tu CV contra lo que buscan los ATS
       </h2>
+
+      <div style={{
+        display: 'flex', gap: '0.75rem', marginBottom: '0.875rem',
+        background: 'var(--md-surface-container-low)', borderRadius: 12, padding: '0.875rem 1rem'
+      }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--md-primary)', lineHeight: 1 }}>~98%</p>
+          <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.25rem' }}>
+            de las empresas grandes usan un ATS para filtrar CVs
+          </p>
+        </div>
+        <div style={{ flex: 1, borderLeft: '1px solid var(--md-outline-variant)', paddingLeft: '0.75rem' }}>
+          <p style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--md-primary)', lineHeight: 1 }}>~75%</p>
+          <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.25rem' }}>
+            de los CVs son descartados por el ATS antes de llegar a una persona
+          </p>
+        </div>
+      </div>
+
       <p className="auth-info-text">
         Un <strong>ATS (Applicant Tracking System)</strong> es el software que usan la mayoría
         de las empresas para recibir y filtrar CVs <em>antes</em> de que un reclutador los vea.
@@ -35,8 +54,11 @@ export default function AtsExplainerPanel() {
       </ul>
       <div className="auth-info-footer">
         <ScanSearch size={16} style={{ flexShrink: 0 }} />
-        <span>El diagnóstico es gratis. Arreglarlo paso a paso ya es parte del plan Pro.</span>
+        <span>El diagnóstico es gratis. Arreglarlo paso a paso y reescribir tu CV con IA ya es parte del plan Pro.</span>
       </div>
+      <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.625rem' }}>
+        Cifras de referencia de la industria de reclutamiento.
+      </p>
     </div>
   )
 }

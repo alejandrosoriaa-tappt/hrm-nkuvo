@@ -72,6 +72,7 @@ export const hrmAPI = {
   }),
   deleteCv:              (id)        => api.delete(`/api/hrm/cvs/${id}`),
   checkCvAts:            (id)        => api.post(`/api/hrm/cvs/${id}/ats-check`),
+  rewriteCv:             (id, contexto) => api.post(`/api/hrm/cvs/${id}/rewrite`, { contexto }),
 
   // Agenda / citas
   listAppointments:      (params)    => api.get('/api/hrm/appointments', { params }),

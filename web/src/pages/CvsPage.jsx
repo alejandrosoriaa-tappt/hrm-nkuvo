@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Upload, Trash2, Sparkles, FileText, CheckCircle2, XCircle, Lock, CreditCard, AlertTriangle } from 'lucide-react'
+import { Upload, Trash2, Sparkles, FileText, CheckCircle2, XCircle, Lock, CreditCard, AlertTriangle, Wand2 } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 const MAX_CVS = 5
@@ -14,6 +14,10 @@ export default function CvsPage() {
   const [atsLoading, setAtsLoading] = useState(false)
   const [atsResult, setAtsResult] = useState(null)
   const [cvName, setCvName] = useState('')
+  const [rewriteModal, setRewriteModal] = useState(null)
+  const [rewriteLoading, setRewriteLoading] = useState(false)
+  const [rewriteResult, setRewriteResult] = useState(null)
+  const [rewriteContexto, setRewriteContexto] = useState('')
   const fileRef = useRef(null)
 
   const load = () => {
@@ -83,6 +87,26 @@ export default function CvsPage() {
     }
   }
 
+  const openRewrite = (cv) => {
+    setRewriteModal(cv)
+    setRewriteResult(cv.rewrite_suggestions || null)
+    setRewriteContexto('')
+  }
+
+  const runRewrite = async () => {
+    if (!rewriteModal) return
+    setRewriteLoading(true)
+    try {
+      const r = await hrmAPI.rewriteCv(rewriteModal.id, rewriteContexto)
+      setRewriteResult(r.data)
+      load()
+    } catch (err) {
+      setRewriteResult({ error: err.response?.data?.error || err.message, locked: err.response?.data?.locked })
+    } finally {
+      setRewriteLoading(false)
+    }
+  }
+
   // Criterio duro a propósito: un reclutador solo revisa una fracción de
   // los CVs que le llegan, así que cualquier score debajo del umbral (90)
   // deja al candidato en desventaja — no hay "aprobado a medias".
@@ -100,6 +124,24 @@ export default function CvsPage() {
           <h1 className="page-title">Mis CVs</h1>
           <p className="page-subtitle">
             Hasta {MAX_CVS} variantes · {cvs.length}/{MAX_CVS} usadas
+          </p>
+        </div>
+      </div>
+
+      {/* Por qué importa el formato ATS */}
+      <div className="card" style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+        <AlertTriangle size={20} style={{ color: 'var(--md-primary)', flexShrink: 0, marginTop: 2 }} />
+        <div>
+          <p style={{ fontWeight: 700, color: 'var(--md-on-surface)', marginBottom: '0.375rem' }}>
+            Antes de que un reclutador vea tu CV, un ATS lo filtra
+          </p>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', lineHeight: 1.6 }}>
+            Se estima que <strong>~98% de las empresas grandes</strong> usan un ATS (Applicant Tracking
+            System) para recibir CVs, y que <strong>~75% de los CVs se descartan automáticamente</strong> por
+            problemas de formato — tablas, columnas, contacto ilegible o secciones sin nombre estándar —
+            antes de que una persona los lea. No importa qué tan bueno sea tu perfil: si el ATS no puede
+            leerlo, nunca llega al reclutador. Por eso el ATS check (formato) y la reescritura con IA
+            (contenido) trabajan juntos en esta página.
           </p>
         </div>
       </div>
@@ -184,6 +226,14 @@ export default function CvsPage() {
                 >
                   <Sparkles size={14} />
                   ATS check
+                </button>
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => openRewrite(cv)}
+                  title="Reescribir contenido con IA"
+                >
+                  <Wand2 size={14} />
+                  Reescribir con IA
                 </button>
                 <button
                   className="btn btn-ghost btn-icon btn-sm"
@@ -303,6 +353,99 @@ export default function CvsPage() {
 
             <div className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setAtsModal(null)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Reescritura con IA */}
+      {rewriteModal && (
+        <div className="modal-backdrop" onClick={() => setRewriteModal(null)}>
+          <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <h2 className="modal-title">Reescribir con IA — {rewriteModal.nombre}</h2>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '1.25rem' }}>
+              Sugerencias sección por sección para sonar más claro y con más impacto — siempre con tu
+              propia experiencia, nunca inventada. El objetivo es sonar como tú, no genérico.
+            </p>
+
+            {!rewriteResult && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div className="input-group">
+                  <label className="input-label">¿A qué puesto quieres aplicar? (opcional)</label>
+                  <input
+                    className="input"
+                    placeholder="Ej: Gerente Comercial en industria farmacéutica"
+                    value={rewriteContexto}
+                    onChange={e => setRewriteContexto(e.target.value)}
+                  />
+                </div>
+                <button className="btn btn-primary btn-sm" onClick={runRewrite} disabled={rewriteLoading}>
+                  {rewriteLoading ? <span className="spinner spinner-sm" /> : <Wand2 size={15} />}
+                  {rewriteLoading ? 'Generando…' : 'Generar sugerencias'}
+                </button>
+              </div>
+            )}
+
+            {rewriteLoading && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+                <div className="spinner" />
+              </div>
+            )}
+
+            {rewriteResult?.locked && (
+              <div className="alert alert-info" style={{ flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem' }}>
+                  <Lock size={14} style={{ flexShrink: 0 }} />
+                  Reescritura con IA disponible con plan Pro.
+                </div>
+                <Link to="/app/membresia" className="btn btn-primary btn-sm">
+                  <CreditCard size={13} /> Suscribirme
+                </Link>
+              </div>
+            )}
+
+            {rewriteResult?.error && !rewriteResult?.locked && (
+              <div className="alert alert-error">{rewriteResult.error}</div>
+            )}
+
+            {rewriteResult && !rewriteResult.error && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="alert alert-info" style={{ alignItems: 'flex-start' }}>
+                  <Wand2 size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ fontSize: '0.8125rem' }}>{rewriteResult.resumen}</span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {rewriteResult.sugerencias?.map((s, i) => (
+                    <div key={i} style={{
+                      padding: '0.875rem', borderRadius: 10,
+                      background: 'var(--md-surface-container-low)',
+                      border: '1px solid var(--md-outline-variant)'
+                    }}>
+                      <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--md-primary)', marginBottom: '0.5rem' }}>
+                        {s.seccion}
+                      </p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.375rem' }}>
+                        <strong>Antes:</strong> {s.original}
+                      </p>
+                      <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface)', marginBottom: '0.375rem' }}>
+                        <strong>Sugerido:</strong> {s.sugerido}
+                      </p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', fontStyle: 'italic' }}>
+                        {s.razon}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <button className="btn btn-outline btn-sm" onClick={() => { setRewriteResult(null); setRewriteContexto('') }}>
+                  <Wand2 size={14} /> Regenerar
+                </button>
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setRewriteModal(null)}>Cerrar</button>
             </div>
           </div>
         </div>

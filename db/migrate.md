@@ -60,6 +60,9 @@ SMTP_SECURE=false
 SMTP_USER=tu@email.com
 SMTP_PASS=tu_app_password      # Gmail: contraseña de aplicación, no la de cuenta
 
+# Reescritura de CV con IA (Pro)
+ANTHROPIC_API_KEY=sk-ant-...
+
 # Clip (billing)
 # Link de suscripción generado desde el dashboard de Clip
 CLIP_SUBSCRIPTION_LINK=https://pago.clip.mx/v2/suscripcion/eaadea41-f533-4902-8fb3-a1836c57b83f
