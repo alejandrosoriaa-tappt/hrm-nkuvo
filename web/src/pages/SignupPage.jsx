@@ -6,7 +6,10 @@ import useAuthStore from '../store/authStore.js'
 export default function SignupPage() {
   const { signUp, isLoading, error, clearError } = useAuthStore()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', confirm: '' })
+  const [form, setForm] = useState({
+    nombre: '', apellidoPaterno: '', apellidoMaterno: '',
+    telefono: '', email: '', password: '', confirm: ''
+  })
   const [success, setSuccess] = useState(false)
 
   const set = (field) => (e) => {
@@ -20,7 +23,14 @@ export default function SignupPage() {
       useAuthStore.setState({ error: 'Las contraseñas no coinciden' })
       return
     }
-    const result = await signUp(form.email, form.password, form.fullName)
+    const fullName = [form.nombre, form.apellidoPaterno, form.apellidoMaterno].filter(Boolean).join(' ')
+    const result = await signUp(form.email, form.password, {
+      fullName,
+      nombre: form.nombre,
+      apellidoPaterno: form.apellidoPaterno,
+      apellidoMaterno: form.apellidoMaterno,
+      telefono: form.telefono,
+    })
     if (result.success) {
       if (result.needsEmailConfirmation) {
         setSuccess(true)
@@ -64,15 +74,58 @@ export default function SignupPage() {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div className="input-group">
-            <label className="input-label" htmlFor="fullName">Nombre completo</label>
+            <label className="input-label" htmlFor="nombre">Nombre(s)</label>
             <input
-              id="fullName"
+              id="nombre"
               type="text"
               className="input"
-              placeholder="María González"
-              value={form.fullName}
-              onChange={set('fullName')}
-              autoComplete="name"
+              placeholder="María"
+              value={form.nombre}
+              onChange={set('nombre')}
+              autoComplete="given-name"
+              required
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <div className="input-group" style={{ flex: 1 }}>
+              <label className="input-label" htmlFor="apellidoPaterno">Apellido paterno</label>
+              <input
+                id="apellidoPaterno"
+                type="text"
+                className="input"
+                placeholder="González"
+                value={form.apellidoPaterno}
+                onChange={set('apellidoPaterno')}
+                autoComplete="family-name"
+                required
+              />
+            </div>
+            <div className="input-group" style={{ flex: 1 }}>
+              <label className="input-label" htmlFor="apellidoMaterno">Apellido materno</label>
+              <input
+                id="apellidoMaterno"
+                type="text"
+                className="input"
+                placeholder="Ramírez"
+                value={form.apellidoMaterno}
+                onChange={set('apellidoMaterno')}
+                autoComplete="additional-name"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="input-group">
+            <label className="input-label" htmlFor="telefono">Número celular</label>
+            <input
+              id="telefono"
+              type="tel"
+              className="input"
+              placeholder="442 123 4567"
+              value={form.telefono}
+              onChange={set('telefono')}
+              autoComplete="tel"
               required
             />
           </div>
@@ -137,9 +190,13 @@ export default function SignupPage() {
         </p>
 
         <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', textAlign: 'center', marginTop: '1rem', lineHeight: 1.4 }}>
+          Tus datos personales (nombre, correo, teléfono) se usan para operar tu cuenta,
+          darte seguimiento con reclutadoras y, si lo activas, enviarte recordatorios de citas.
           Al registrarte aceptas el{' '}
-          <a href="#" style={{ color: 'var(--md-primary)' }}>Aviso de Privacidad</a>
-          {' '}(LFPDPPP).
+          <a href="https://www.nkuvo.com" target="_blank" rel="noreferrer" style={{ color: 'var(--md-primary)' }}>
+            Aviso de Privacidad
+          </a>
+          {' '}(LFPDPPP) de NKUVO Labs.
         </p>
       </div>
     </div>
