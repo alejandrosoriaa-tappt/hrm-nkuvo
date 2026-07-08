@@ -24,7 +24,7 @@ export default function LoginPage() {
       <div className="auth-card">
         <div className="auth-logo">
           <p className="auth-logo-text">HRM <span>NKUVO</span></p>
-          <p className="auth-tagline">Directorio de reclutadoras para candidatos en México</p>
+          <p className="auth-tagline">Directorio de reclutadores para candidatos en México</p>
         </div>
 
         {error && (

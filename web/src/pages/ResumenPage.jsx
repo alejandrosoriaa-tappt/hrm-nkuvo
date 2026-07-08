@@ -64,7 +64,7 @@ export default function ResumenPage() {
         <StatCard
           icon={<Users size={20} />}
           value={stats?.totalContactos ?? 0}
-          label="Reclutadoras contactadas"
+          label="Reclutadores contactados"
         />
         <StatCard
           icon={<CalendarDays size={20} />}

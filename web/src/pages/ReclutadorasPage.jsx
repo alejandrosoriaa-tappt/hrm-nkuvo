@@ -47,7 +47,7 @@ export default function ReclutadorasPage() {
     setAddingContact(true)
     try {
       await hrmAPI.createContact({ recruiter_id: selected.id })
-      alert('Reclutadora agregada a tus contactos.')
+      alert('Reclutador agregado a tus contactos.')
     } catch (err) {
       alert(err.response?.data?.error || err.message)
     } finally {
@@ -63,10 +63,10 @@ export default function ReclutadorasPage() {
     <>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Directorio de reclutadoras</h1>
+          <h1 className="page-title">Directorio de reclutadores</h1>
           <p className="page-subtitle">
             {sub?.status !== 'active'
-              ? 'Plan gratuito: datos de contacto disponibles para las primeras 5 reclutadoras'
+              ? 'Plan gratuito: datos de contacto disponibles para los primeros 5 reclutadores'
               : 'Plan Pro: acceso completo a todos los datos de contacto'}
           </p>
         </div>
@@ -138,7 +138,7 @@ export default function ReclutadorasPage() {
           )}
 
           <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '0.75rem' }}>
-            {filtered.length} de {recruiters.length} reclutadoras
+            {filtered.length} de {recruiters.length} reclutadores
           </p>
         </div>
 
@@ -179,7 +179,7 @@ export default function ReclutadorasPage() {
                     </InfoRow>
                   ) : (
                     <div className="alert alert-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem', padding: '0.5rem 0.75rem' }}>
-                      <span>Contacto disponible para primeras 5 reclutadoras o con plan Pro</span>
+                      <span>Contacto disponible para primeros 5 reclutadores o con plan Pro</span>
                       {sub?.status !== 'active' && (
                         <Link to="/app/membresia" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start' }}>
                           <CreditCard size={13} /> Suscribirme

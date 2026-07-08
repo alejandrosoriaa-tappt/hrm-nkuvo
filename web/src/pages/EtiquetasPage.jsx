@@ -6,7 +6,7 @@ export default function EtiquetasPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Etiquetas</h1>
-          <p className="page-subtitle">Organiza reclutadoras y contactos por categorías</p>
+          <p className="page-subtitle">Organiza reclutadores y contactos por categorías</p>
         </div>
         <button className="btn btn-primary btn-sm" disabled>
           <Plus size={15} /> Nueva etiqueta

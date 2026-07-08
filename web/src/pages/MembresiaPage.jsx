@@ -51,7 +51,7 @@ export default function MembresiaPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Membresía</h1>
-          <p className="page-subtitle">Gestiona tu plan y desbloquea contacto ilimitado con reclutadoras</p>
+          <p className="page-subtitle">Gestiona tu plan y desbloquea contacto ilimitado con reclutadores</p>
         </div>
       </div>
 
@@ -82,7 +82,7 @@ function FreePlan({ checkoutLoading, onSubscribe, billingError }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <span className="chip">Plan Gratuito</span>
         <span style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
-          Contacto desbloqueado para las primeras 5 reclutadoras
+          Contacto desbloqueado para los primeros 5 reclutadores
         </span>
       </div>
 
@@ -92,7 +92,7 @@ function FreePlan({ checkoutLoading, onSubscribe, billingError }) {
         </p>
         <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.375rem', marginBottom: '1rem' }}>
           {[
-            'Acceso ilimitado a datos de contacto de todas las reclutadoras',
+            'Acceso ilimitado a datos de contacto de todos los reclutadores',
             'Sin límite en contactos desbloqueados',
             'Cancela cuando quieras — sin penalización',
           ].map(f => (

@@ -137,7 +137,7 @@ export default function CalendarioPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Calendario</h1>
-          <p className="page-subtitle">Tus citas con reclutadoras</p>
+          <p className="page-subtitle">Tus citas con reclutadores</p>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => openNew(null)}>
           <Plus size={15} /> Nueva cita
@@ -275,10 +275,10 @@ export default function CalendarioPage() {
               </div>
 
               <div className="input-group">
-                <label className="input-label">ID de reclutadora (opcional)</label>
+                <label className="input-label">ID de reclutador (opcional)</label>
                 <input
                   className="input"
-                  placeholder="UUID de la reclutadora"
+                  placeholder="UUID del reclutador"
                   value={form.recruiter_id}
                   onChange={e => setForm(f => ({ ...f, recruiter_id: e.target.value }))}
                 />

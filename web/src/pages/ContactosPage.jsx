@@ -114,7 +114,7 @@ export default function ContactosPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Contactos</h1>
-          <p className="page-subtitle">Seguimiento de reclutadoras con quienes ya interactuaste</p>
+          <p className="page-subtitle">Seguimiento de reclutadores con quienes ya interactuaste</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-outline btn-sm" onClick={handleExport} disabled={exporting}>
@@ -139,7 +139,7 @@ export default function ContactosPage() {
             <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
           <p style={{ fontWeight: 600 }}>Sin contactos aún</p>
-          <p style={{ fontSize: '0.875rem' }}>Agrega una reclutadora desde el directorio o usa el botón de arriba.</p>
+          <p style={{ fontSize: '0.875rem' }}>Agrega un reclutador desde el directorio o usa el botón de arriba.</p>
           <button className="btn btn-primary btn-sm" onClick={openNew}>
             <Plus size={15} /> Agregar
           </button>
@@ -149,7 +149,7 @@ export default function ContactosPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Reclutadora</th>
+                <th>Reclutador</th>
                 <th>Industria</th>
                 <th>Estado</th>
                 <th>Fecha de contacto</th>
@@ -213,16 +213,16 @@ export default function ContactosPage() {
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {modal === 'new' && (
                 <div className="input-group">
-                  <label className="input-label">ID de reclutadora</label>
+                  <label className="input-label">ID de reclutador</label>
                   <input
                     className="input"
-                    placeholder="UUID de la reclutadora"
+                    placeholder="UUID del reclutador"
                     value={form.recruiter_id}
                     onChange={e => setForm(f => ({ ...f, recruiter_id: e.target.value }))}
                     required
                   />
                   <span className="input-error" style={{ color: 'var(--md-on-surface-variant)' }}>
-                    Cópialo desde el directorio de reclutadoras.
+                    Cópialo desde el directorio de reclutadores.
                   </span>
                 </div>
               )}

@@ -34,7 +34,7 @@ export default function EnviosPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Envíos</h1>
-          <p className="page-subtitle">Envía tu CV por correo a una reclutadora directamente desde aquí</p>
+          <p className="page-subtitle">Envía tu CV por correo a un reclutador directamente desde aquí</p>
         </div>
       </div>
 
@@ -45,11 +45,11 @@ export default function EnviosPage() {
         <div className="card">
           <form onSubmit={handleSend} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div className="input-group">
-              <label className="input-label">Para (correo de la reclutadora)</label>
+              <label className="input-label">Para (correo del reclutador)</label>
               <input
                 type="email"
                 className="input"
-                placeholder="reclutadora@empresa.com"
+                placeholder="reclutador@empresa.com"
                 value={form.to}
                 onChange={e => setForm(f => ({ ...f, to: e.target.value }))}
                 required
@@ -110,7 +110,7 @@ export default function EnviosPage() {
         </div>
 
         <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '0.75rem' }}>
-          El correo se envía desde la dirección configurada en el servidor. La reclutadora recibirá tu CV como adjunto.
+          El correo se envía desde la dirección configurada en el servidor. El reclutador recibirá tu CV como adjunto.
         </p>
       </div>
     </>

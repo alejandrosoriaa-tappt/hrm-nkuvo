@@ -19,7 +19,7 @@ const NAV_SECTIONS = [
   {
     label: 'Directorio',
     items: [
-      { to: '/app/reclutadoras', icon: Building2, label: 'Reclutadoras' },
+      { to: '/app/reclutadoras', icon: Building2, label: 'Reclutadores' },
       { to: '/app/cvs',          icon: FileText,  label: 'Mis CVs' },
     ]
   },
