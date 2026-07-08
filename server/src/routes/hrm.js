@@ -110,14 +110,46 @@ router.get('/recruiters/:id', recruiterDetailLimit, async (req, res) => {
 })
 
 // ── Seguimiento de contacto ──────────────────────────────────────────────
+// email/telefono solo se incluyen si el usuario ya desbloqueó esa reclutadora
+// (plan Pro o dentro de sus 5 gratis) — mismo criterio que /recruiters/:id.
+// Sin este filtro, POST /contacts con cualquier recruiter_id permitiría leer
+// el contacto aquí sin pasar por el conteo de desbloqueos.
 router.get('/contacts', async (req, res) => {
+  const userId = req.user.id
+
   const { data, error } = await supabase
     .from('hrm_contacts')
-    .select('*, hrm_recruiters(nombre, industria, sitio_web)')
-    .eq('user_id', req.user.id)
+    .select('*, hrm_recruiters(id, nombre, industria, sitio_web, email, telefono)')
+    .eq('user_id', userId)
     .order('updated_at', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
-  res.json(data)
+
+  const { data: sub } = await supabase
+    .from('hrm_subscriptions')
+    .select('status')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const isPro = sub?.status === 'active'
+
+  let unlockedIds = new Set()
+  if (!isPro) {
+    const { data: unlocked } = await supabase
+      .from('hrm_unlocked_recruiters')
+      .select('recruiter_id')
+      .eq('user_id', userId)
+    unlockedIds = new Set((unlocked || []).map(u => u.recruiter_id))
+  }
+
+  const result = data.map(contact => {
+    const recruiter = contact.hrm_recruiters
+    if (!recruiter) return contact
+    const canSeeContact = isPro || unlockedIds.has(recruiter.id)
+    if (canSeeContact) return contact
+    const { email: _, telefono: __, ...publicRecruiter } = recruiter
+    return { ...contact, hrm_recruiters: publicRecruiter }
+  })
+
+  res.json(result)
 })
 
 router.post('/contacts', async (req, res) => {

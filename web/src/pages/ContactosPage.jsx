@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Download, ExternalLink } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, ExternalLink, Mail, Phone } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 const STATUS_LABELS = {
@@ -151,6 +151,7 @@ export default function ContactosPage() {
               <tr>
                 <th>Reclutador</th>
                 <th>Industria</th>
+                <th>Contacto</th>
                 <th>Estado</th>
                 <th>Fecha de contacto</th>
                 <th>Notas</th>
@@ -167,6 +168,26 @@ export default function ContactosPage() {
                     </td>
                     <td style={{ color: 'var(--md-on-surface-variant)', fontSize: '0.8125rem' }}>
                       {c.hrm_recruiters?.industria || '—'}
+                    </td>
+                    <td style={{ fontSize: '0.8125rem' }}>
+                      {c.hrm_recruiters?.email || c.hrm_recruiters?.telefono ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {c.hrm_recruiters.email && (
+                            <a href={`mailto:${c.hrm_recruiters.email}`} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--md-primary)' }}>
+                              <Mail size={12} /> {c.hrm_recruiters.email}
+                            </a>
+                          )}
+                          {c.hrm_recruiters.telefono && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--md-on-surface-variant)' }}>
+                              <Phone size={12} /> {c.hrm_recruiters.telefono}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--md-on-surface-variant)' }}>
+                          Bloqueado — ábrelo desde el directorio
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span className={status.cls}>{status.label}</span>
