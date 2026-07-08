@@ -553,7 +553,56 @@ select.input { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 2rem;
   padding: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.auth-info {
+  max-width: 420px;
+  padding: 0.5rem;
+}
+
+.auth-info-title {
+  font-size: 1.375rem;
+  font-weight: 800;
+  color: var(--md-on-surface);
+  line-height: 1.3;
+  margin-bottom: 0.875rem;
+}
+
+.auth-info-text {
+  font-size: 0.875rem;
+  color: var(--md-on-surface-variant);
+  line-height: 1.6;
+  margin-bottom: 0.875rem;
+}
+
+.auth-info-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.auth-info-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--md-on-surface);
+}
+
+.auth-info-footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--md-primary);
+  font-weight: 500;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--md-outline-variant);
 }
 
 .auth-card {

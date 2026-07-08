@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
 import useAuthStore from '../store/authStore.js'
+import AtsExplainerPanel from '../components/AtsExplainerPanel.jsx'
 
 export default function LoginPage() {
   const { login, isLoading, error, clearError } = useAuthStore()
@@ -21,6 +22,7 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
+      <AtsExplainerPanel />
       <div className="auth-card">
         <div className="auth-logo">
           <p className="auth-logo-text">HRM <span>NKUVO</span></p>
