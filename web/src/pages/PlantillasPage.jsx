@@ -1,5 +1,7 @@
-import { useState } from 'react'
-import { Copy, Check, Mail, MessageCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { Copy, Check, Mail, MessageCircle, Lock, CreditCard } from 'lucide-react'
+import { hrmAPI } from '../lib/api.js'
 
 const TEMPLATES = [
   {
@@ -97,6 +99,13 @@ Saludos,
 
 export default function PlantillasPage() {
   const [copiedId, setCopiedId] = useState(null)
+  const [isPro, setIsPro] = useState(null) // null = cargando
+
+  useEffect(() => {
+    hrmAPI.getSubscription()
+      .then(r => setIsPro(r.data?.status === 'active'))
+      .catch(() => setIsPro(false))
+  }, [])
 
   const handleCopy = async (t) => {
     const text = t.subject
@@ -123,6 +132,17 @@ export default function PlantillasPage() {
         </div>
       </div>
 
+      {isPro === false && (
+        <div className="alert alert-info" style={{ marginBottom: '1.5rem', maxWidth: 640, flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
+          <p style={{ fontSize: '0.8125rem' }}>
+            Las plantillas completas son parte del plan Pro. Suscríbete para desbloquear el texto y copiarlo.
+          </p>
+          <Link to="/app/membresia" className="btn btn-primary btn-sm">
+            <CreditCard size={13} /> Suscribirme
+          </Link>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: 640 }}>
         {TEMPLATES.map(t => (
           <div key={t.id} className="card">
@@ -136,36 +156,72 @@ export default function PlantillasPage() {
                 </div>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>{t.description}</p>
               </div>
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={() => handleCopy(t)}
-                style={{ flexShrink: 0 }}
-              >
-                {copiedId === t.id
-                  ? <><Check size={14} /> Copiado</>
-                  : <><Copy size={14} /> Copiar</>}
-              </button>
+
+              {isPro ? (
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => handleCopy(t)}
+                  style={{ flexShrink: 0 }}
+                >
+                  {copiedId === t.id
+                    ? <><Check size={14} /> Copiado</>
+                    : <><Copy size={14} /> Copiar</>}
+                </button>
+              ) : (
+                <Link to="/app/membresia" className="btn btn-outline btn-sm" style={{ flexShrink: 0 }}>
+                  <Lock size={14} /> Suscribirme
+                </Link>
+              )}
             </div>
 
-            {t.subject && (
-              <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.5rem' }}>
-                <strong>Asunto:</strong> {t.subject}
-              </p>
+            {isPro ? (
+              <>
+                {t.subject && (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.5rem' }}>
+                    <strong>Asunto:</strong> {t.subject}
+                  </p>
+                )}
+                <pre style={{
+                  fontFamily: 'inherit',
+                  fontSize: '0.8125rem',
+                  color: 'var(--md-on-surface)',
+                  whiteSpace: 'pre-wrap',
+                  background: 'var(--md-surface-container-low)',
+                  borderRadius: 10,
+                  padding: '0.875rem',
+                  margin: 0,
+                  lineHeight: 1.6,
+                }}>
+                  {t.body}
+                </pre>
+              </>
+            ) : (
+              <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden' }}>
+                <pre style={{
+                  fontFamily: 'inherit',
+                  fontSize: '0.8125rem',
+                  color: 'var(--md-on-surface)',
+                  whiteSpace: 'pre-wrap',
+                  background: 'var(--md-surface-container-low)',
+                  borderRadius: 10,
+                  padding: '0.875rem',
+                  margin: 0,
+                  lineHeight: 1.6,
+                  filter: 'blur(5px)',
+                  userSelect: 'none',
+                }}>
+                  {t.body}
+                </pre>
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600,
+                  color: 'var(--md-on-surface-variant)',
+                }}>
+                  <Lock size={14} /> Disponible con plan Pro
+                </div>
+              </div>
             )}
-
-            <pre style={{
-              fontFamily: 'inherit',
-              fontSize: '0.8125rem',
-              color: 'var(--md-on-surface)',
-              whiteSpace: 'pre-wrap',
-              background: 'var(--md-surface-container-low)',
-              borderRadius: 10,
-              padding: '0.875rem',
-              margin: 0,
-              lineHeight: 1.6,
-            }}>
-              {t.body}
-            </pre>
           </div>
         ))}
       </div>
