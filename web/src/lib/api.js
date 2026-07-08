@@ -78,9 +78,6 @@ export const hrmAPI = {
   createAppointment:     (data)      => api.post('/api/hrm/appointments', data),
   updateAppointment:     (id, data)  => api.put(`/api/hrm/appointments/${id}`, data),
 
-  // Envío de correo con CV adjunto
-  sendCvEmail:           (data)      => api.post('/api/hrm/emails/send-cv', data),
-
   // Suscripción (estado simple — usado en Resumen y Reclutadoras)
   getSubscription:       ()          => api.get('/api/hrm/subscription'),
 

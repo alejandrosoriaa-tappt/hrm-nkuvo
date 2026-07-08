@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { createClient } from '@supabase/supabase-js'
 import multer from 'multer'
-import nodemailer from 'nodemailer'
 import ExcelJS from 'exceljs'
 import rateLimit from 'express-rate-limit'
 import { authMiddleware } from '../middleware/auth.js'
@@ -495,69 +494,6 @@ router.put('/appointments/:id', async (req, res) => {
     .single()
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
-})
-
-// ── Envío de correo con CV adjunto ───────────────────────────────────────
-// Descarga el CV de Storage y lo adjunta al correo vía nodemailer.
-// Requiere SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS en Railway.
-router.post('/emails/send-cv', async (req, res) => {
-  const { to, subject, cvId, message } = req.body
-  if (!to || !subject || !cvId || !message) {
-    return res.status(400).json({ error: 'Faltan campos: to, subject, cvId, message' })
-  }
-
-  // Obtener CV
-  const { data: cv, error: cvErr } = await supabase
-    .from('hrm_cvs')
-    .select('*')
-    .eq('id', cvId)
-    .eq('user_id', req.user.id)
-    .single()
-  if (cvErr || !cv) return res.status(404).json({ error: 'CV no encontrado' })
-
-  // Descargar de Storage
-  const { data: fileData, error: dlErr } = await supabase.storage
-    .from('cvs')
-    .download(cv.storage_path)
-  if (dlErr) return res.status(500).json({ error: 'Error descargando el CV' })
-
-  const buffer = Buffer.from(await fileData.arrayBuffer())
-  const ext = cv.storage_path.split('.').pop()
-
-  // Crear transporte SMTP
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    }
-  })
-
-  try {
-    await transporter.sendMail({
-      from: `"HRM NKUVO" <${process.env.SMTP_USER}>`,
-      to,
-      subject,
-      text: message,
-      html: `<p>${message.replace(/\n/g, '<br>')}</p>
-        <hr>
-        <p style="font-size:12px;color:#666">
-          Enviado desde <a href="https://hrm.nkuvo.com">HRM NKUVO</a>
-        </p>`,
-      attachments: [{
-        filename: `${cv.nombre}.${ext}`,
-        content: buffer,
-        contentType: ext === 'pdf' ? 'application/pdf'
-          : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      }]
-    })
-    res.json({ ok: true })
-  } catch (err) {
-    console.error('SMTP error:', err)
-    res.status(500).json({ error: 'Error enviando el correo. Revisa la config SMTP.' })
-  }
 })
 
 // ── Suscripción ───────────────────────────────────────────────────────────

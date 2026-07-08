@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, CalendarDays, Building2, FileText,
-  Send, BookTemplate, Briefcase, StickyNote, Tag,
+  BookTemplate, Briefcase, StickyNote, Tag,
   BarChart3, Settings, Moon, Sun, LogOut, Sparkles, CreditCard
 } from 'lucide-react'
 import useAuthStore from '../store/authStore.js'
@@ -26,7 +26,6 @@ const NAV_SECTIONS = [
   {
     label: 'Herramientas',
     items: [
-      { to: '/app/envios',        icon: Send,         label: 'Envíos' },
       { to: '/app/plantillas',    icon: BookTemplate, label: 'Plantillas' },
       { to: '/app/oportunidades', icon: Briefcase,    label: 'Oportunidades' },
       { to: '/app/notas',         icon: StickyNote,   label: 'Notas' },
