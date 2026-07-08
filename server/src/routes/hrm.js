@@ -144,10 +144,33 @@ router.get('/contacts', async (req, res) => {
   res.json(result)
 })
 
+// Igual que /recruiters/:id y /contacts (GET): agregar a seguimiento requiere
+// haber desbloqueado ese reclutador (Pro o dentro de las 5 gratis). Sin este
+// check, un usuario free podía seguir agregando reclutadores indefinidamente
+// aunque ya no pudiera ver su contacto — nunca lo empujaba a suscribirse.
 router.post('/contacts', async (req, res) => {
+  const userId = req.user.id
+  const recruiterId = req.body.recruiter_id
+
+  const isPro = await isProUser(supabase, userId)
+  if (!isPro) {
+    const { data: unlocked } = await supabase
+      .from('hrm_unlocked_recruiters')
+      .select('recruiter_id')
+      .eq('user_id', userId)
+      .eq('recruiter_id', recruiterId)
+      .maybeSingle()
+    if (!unlocked) {
+      return res.status(403).json({
+        error: 'Ya usaste tus 5 reclutadores gratis. Suscríbete a Pro para seguir agregando.',
+        locked: true,
+      })
+    }
+  }
+
   const { data, error } = await supabase
     .from('hrm_contacts')
-    .insert({ ...req.body, user_id: req.user.id })
+    .insert({ ...req.body, user_id: userId })
     .select()
     .single()
   if (error) return res.status(500).json({ error: error.message })

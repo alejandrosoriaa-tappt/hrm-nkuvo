@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Search, ExternalLink, Plus, MessageCircle, Globe, Phone, Mail, CreditCard } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Search, ExternalLink, Plus, MessageCircle, Globe, Phone, Mail, CreditCard, Lock } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 export default function ReclutadorasPage() {
+  const navigate = useNavigate()
   const [recruiters, setRecruiters] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -49,14 +50,20 @@ export default function ReclutadorasPage() {
       await hrmAPI.createContact({ recruiter_id: selected.id })
       alert('Reclutador agregado a tus contactos.')
     } catch (err) {
+      if (err.response?.data?.locked) {
+        navigate('/app/membresia')
+        return
+      }
       alert(err.response?.data?.error || err.message)
     } finally {
       setAddingContact(false)
     }
   }
 
-  // Determina si el detalle debe mostrar datos de contacto
-  // (se decide en el backend, aquí solo mostramos lo que llegue)
+  // El backend marca _contactLocked cuando ya no quedan desbloqueos gratis
+  // y el usuario no es Pro — úsalo para bloquear también "Agregar a
+  // seguimiento" en vez de solo inferir del email/telefono presentes.
+  const isLocked = selected?._contactLocked === true
   const hasContact = selected && (selected.email || selected.telefono)
 
   return (
@@ -195,14 +202,21 @@ export default function ReclutadorasPage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <button
-                    className="btn btn-primary btn-sm w-full"
-                    onClick={handleAddContact}
-                    disabled={addingContact}
-                  >
-                    <Plus size={15} />
-                    {addingContact ? 'Agregando…' : 'Agregar a seguimiento'}
-                  </button>
+                  {isLocked ? (
+                    <Link to="/app/membresia" className="btn btn-primary btn-sm w-full">
+                      <Lock size={14} />
+                      Suscribirme para agregar
+                    </Link>
+                  ) : (
+                    <button
+                      className="btn btn-primary btn-sm w-full"
+                      onClick={handleAddContact}
+                      disabled={addingContact}
+                    >
+                      <Plus size={15} />
+                      {addingContact ? 'Agregando…' : 'Agregar a seguimiento'}
+                    </button>
+                  )}
 
                   {selected.telefono && (
                     <a
