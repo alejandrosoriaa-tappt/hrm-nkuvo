@@ -1,35 +1,43 @@
 import { useState } from 'react'
 import { Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, ListChecks, Building2, FileText, CalendarDays, Settings,
-  Moon, LogOut, Sparkles
+  LayoutDashboard, Users, CalendarDays, Building2, FileText,
+  Send, BookTemplate, Briefcase, StickyNote, Tag,
+  BarChart3, Settings, Moon, Sun, LogOut, Sparkles
 } from 'lucide-react'
 import useAuthStore from '../store/authStore.js'
 
-// Estructura de sidebar inspirada en el dashboard de Tappt Business
-// (secciones agrupadas con encabezado en mayúsculas, item activo con fondo
-// sólido, toggle de modo oscuro y cerrar sesión al fondo). A diferencia del
-// Layout del CRM de NKUVO (header horizontal), aquí es sidebar vertical fija.
 const NAV_SECTIONS = [
   {
     label: 'General',
     items: [
-      { to: '/app', end: true, icon: LayoutDashboard, label: 'Inicio' },
-      { to: '/app/seguimiento', icon: ListChecks, label: 'Seguimiento' },
+      { to: '/app',             end: true, icon: LayoutDashboard, label: 'Resumen' },
+      { to: '/app/contactos',             icon: Users,            label: 'Contactos' },
+      { to: '/app/calendario',            icon: CalendarDays,     label: 'Calendario' },
     ]
   },
   {
     label: 'Directorio',
     items: [
       { to: '/app/reclutadoras', icon: Building2, label: 'Reclutadoras' },
+      { to: '/app/cvs',          icon: FileText,  label: 'Mis CVs' },
     ]
   },
   {
     label: 'Herramientas',
     items: [
-      { to: '/app/cvs', icon: FileText, label: 'Mis CVs' },
-      { to: '/app/agenda', icon: CalendarDays, label: 'Agenda' },
-      { to: '/app/configuracion', icon: Settings, label: 'Configuración' },
+      { to: '/app/envios',        icon: Send,         label: 'Envíos' },
+      { to: '/app/plantillas',    icon: BookTemplate, label: 'Plantillas' },
+      { to: '/app/oportunidades', icon: Briefcase,    label: 'Oportunidades' },
+      { to: '/app/notas',         icon: StickyNote,   label: 'Notas' },
+      { to: '/app/etiquetas',     icon: Tag,          label: 'Etiquetas' },
+    ]
+  },
+  {
+    label: 'Cuenta',
+    items: [
+      { to: '/app/reportes',      icon: BarChart3, label: 'Reportes' },
+      { to: '/app/configuracion', icon: Settings,  label: 'Configuración' },
     ]
   }
 ]
@@ -41,8 +49,8 @@ export default function Layout() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-hrm-surface flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-hrm-primary border-t-transparent rounded-full animate-spin" />
+      <div className="center-screen">
+        <div className="spinner" />
       </div>
     )
   }
@@ -54,36 +62,40 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuario'
+  const toggleDark = () => {
+    const next = !darkMode
+    setDarkMode(next)
+    document.documentElement.setAttribute('data-theme', next ? 'dark' : '')
+  }
 
-  const navClass = ({ isActive }) =>
-    `flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
-      isActive
-        ? 'bg-hrm-primary text-hrm-on-primary shadow-md3-1'
-        : 'text-hrm-on-surface-variant hover:bg-hrm-surface-container'
-    }`
+  const displayName =
+    user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuario'
 
   return (
-    <div className={`min-h-screen flex ${darkMode ? 'dark' : ''}`}>
-
+    <div className="page-layout">
       {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 bg-white border-r border-hrm-outline-variant/40 flex flex-col">
-        <div className="px-4 py-5">
-          <p className="font-bold text-hrm-on-surface leading-tight">
-            HRM <span className="text-hrm-primary">NKUVO</span>
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <p className="sidebar-logo">
+            HRM <span>NKUVO</span>
           </p>
-          <p className="text-xs text-hrm-on-surface-variant mt-0.5">{displayName}</p>
+          <p className="sidebar-user">{displayName}</p>
         </div>
 
-        <nav className="flex-1 px-3 space-y-5 overflow-y-auto">
+        <nav className="sidebar-nav">
           {NAV_SECTIONS.map(section => (
             <div key={section.label}>
-              <p className="px-3 mb-1.5 text-[11px] font-semibold tracking-wide uppercase text-hrm-on-surface-variant/70">
-                {section.label}
-              </p>
-              <div className="space-y-0.5">
+              <p className="sidebar-nav-section-label">{section.label}</p>
+              <div className="sidebar-nav-items">
                 {section.items.map(item => (
-                  <NavLink key={item.to} to={item.to} end={item.end} className={navClass}>
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      `nav-link${isActive ? ' active' : ''}`
+                    }
+                  >
                     <item.icon size={16} />
                     {item.label}
                   </NavLink>
@@ -93,18 +105,12 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="p-3 space-y-1 border-t border-hrm-outline-variant/40">
-          <button
-            onClick={() => setDarkMode(d => !d)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-hrm-on-surface-variant hover:bg-hrm-surface-container transition-colors"
-          >
-            <Moon size={16} />
-            Modo oscuro
+        <div className="sidebar-footer">
+          <button className="btn btn-ghost btn-sm w-full" style={{ borderRadius: 12, justifyContent: 'flex-start' }} onClick={toggleDark}>
+            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+            {darkMode ? 'Modo claro' : 'Modo oscuro'}
           </button>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-hrm-on-surface-variant hover:bg-hrm-surface-container transition-colors"
-          >
+          <button className="btn btn-ghost btn-sm w-full" style={{ borderRadius: 12, justifyContent: 'flex-start' }} onClick={handleLogout}>
             <LogOut size={16} />
             Cerrar sesión
           </button>
@@ -112,17 +118,13 @@ export default function Layout() {
       </aside>
 
       {/* Content */}
-      <div className="flex-1 bg-hrm-surface min-h-screen relative">
-        <main className="p-6 max-w-6xl mx-auto">
+      <div className="main-content">
+        <main className="page-inner">
           <Outlet />
         </main>
 
-        {/* Botón flotante de asistente — mismo patrón que el dashboard de
-            Tappt Business (esquina inferior derecha). Sin funcionalidad aún. */}
-        <button
-          title="Asistente"
-          className="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-hrm-primary text-hrm-on-primary shadow-md3-3 flex items-center justify-center hover:shadow-md3-4 transition-shadow"
-        >
+        {/* Botón flotante de asistente */}
+        <button className="fab" title="Asistente (próximamente)">
           <Sparkles size={18} />
         </button>
       </div>
