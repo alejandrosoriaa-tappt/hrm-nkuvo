@@ -14,6 +14,7 @@ import NotasPage from './pages/NotasPage.jsx'
 import EtiquetasPage from './pages/EtiquetasPage.jsx'
 import ReportesPage from './pages/ReportesPage.jsx'
 import ConfiguracionPage from './pages/ConfiguracionPage.jsx'
+import MembresiaPage from './pages/MembresiaPage.jsx'
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="etiquetas"       element={<EtiquetasPage />} />
           <Route path="reportes"        element={<ReportesPage />} />
           <Route path="configuracion"   element={<ConfiguracionPage />} />
+          <Route path="membresia"       element={<MembresiaPage />} />
         </Route>
 
         {/* Raíz redirige al app */}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Search, ExternalLink, Plus, MessageCircle, Globe, Phone, Mail } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Search, ExternalLink, Plus, MessageCircle, Globe, Phone, Mail, CreditCard } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 export default function ReclutadorasPage() {
@@ -177,8 +178,13 @@ export default function ReclutadorasPage() {
                       </a>
                     </InfoRow>
                   ) : (
-                    <div className="alert alert-info" style={{ fontSize: '0.75rem', padding: '0.5rem 0.75rem' }}>
-                      Email disponible{sub?.status !== 'active' ? ' para primeras 5 reclutadoras o con plan Pro' : ''}
+                    <div className="alert alert-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem', padding: '0.5rem 0.75rem' }}>
+                      <span>Contacto disponible para primeras 5 reclutadoras o con plan Pro</span>
+                      {sub?.status !== 'active' && (
+                        <Link to="/app/membresia" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start' }}>
+                          <CreditCard size={13} /> Suscribirme
+                        </Link>
+                      )}
                     </div>
                   )}
                   {selected.telefono && (

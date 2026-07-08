@@ -3,7 +3,7 @@ import { Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, CalendarDays, Building2, FileText,
   Send, BookTemplate, Briefcase, StickyNote, Tag,
-  BarChart3, Settings, Moon, Sun, LogOut, Sparkles
+  BarChart3, Settings, Moon, Sun, LogOut, Sparkles, CreditCard
 } from 'lucide-react'
 import useAuthStore from '../store/authStore.js'
 
@@ -36,6 +36,7 @@ const NAV_SECTIONS = [
   {
     label: 'Cuenta',
     items: [
+      { to: '/app/membresia',     icon: CreditCard, label: 'Membresía' },
       { to: '/app/reportes',      icon: BarChart3, label: 'Reportes' },
       { to: '/app/configuracion', icon: Settings,  label: 'Configuración' },
     ]
