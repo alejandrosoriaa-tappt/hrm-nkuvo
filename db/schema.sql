@@ -54,6 +54,28 @@ create table if not exists hrm_subscriptions (
   updated_at    timestamptz default now()
 );
 
+-- ── Sesión única por dispositivo ─────────────────────────────────────────
+-- Un token por usuario activo. Al iniciar sesión se genera uno nuevo y se
+-- invalida el anterior. Cada request autenticado compara X-Session-Token
+-- contra este registro; si no coincide → 401 "Tu cuenta se abrió en otro
+-- dispositivo".
+create table if not exists hrm_sessions (
+  user_id       uuid primary key references auth.users(id) on delete cascade,
+  session_token text not null unique,
+  created_at    timestamptz default now(),
+  user_agent    text
+);
+
+-- ── Rate limit extra: desbloqueos de reclutadora por usuario ──────────────
+-- Registra qué reclutadoras ha "desbloqueado" el usuario (visto datos completos).
+-- Permite aplicar el límite de 5 gratuitas sin contar IPs.
+create table if not exists hrm_unlocked_recruiters (
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  recruiter_id  uuid not null references hrm_recruiters(id) on delete cascade,
+  unlocked_at   timestamptz default now(),
+  primary key (user_id, recruiter_id)
+);
+
 -- RLS: cada usuario solo ve lo suyo. hrm_recruiters es de lectura pública
 -- (el gating de contacto/email se hace en el backend, no en RLS, porque
 -- depende de "cuántos ha desbloqueado" — lógica de negocio, no de fila).
@@ -66,3 +88,9 @@ create policy "own_contacts" on hrm_contacts for all using (auth.uid() = user_id
 create policy "own_cvs" on hrm_cvs for all using (auth.uid() = user_id);
 create policy "own_appointments" on hrm_appointments for all using (auth.uid() = user_id);
 create policy "own_subscription" on hrm_subscriptions for select using (auth.uid() = user_id);
+
+alter table hrm_sessions enable row level security;
+create policy "own_session" on hrm_sessions for all using (auth.uid() = user_id);
+
+alter table hrm_unlocked_recruiters enable row level security;
+create policy "own_unlocked" on hrm_unlocked_recruiters for all using (auth.uid() = user_id);

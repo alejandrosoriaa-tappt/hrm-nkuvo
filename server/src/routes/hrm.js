@@ -1,9 +1,11 @@
 import { Router } from 'express'
 import { createClient } from '@supabase/supabase-js'
 import { authMiddleware } from '../middleware/auth.js'
+import { sessionMiddleware } from '../middleware/session.js'
 
 const router = Router()
 router.use(authMiddleware)
+router.use(sessionMiddleware)
 
 // Cliente con service_role: el backend lee/escribe sin pasar por RLS del
 // usuario, y aplica el filtro por user_id manualmente en cada query (mismo
