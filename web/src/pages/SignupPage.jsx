@@ -190,13 +190,14 @@ export default function SignupPage() {
         </p>
 
         <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', textAlign: 'center', marginTop: '1rem', lineHeight: 1.4 }}>
-          Tus datos personales (nombre, correo, teléfono) se usan para operar tu cuenta,
-          darte seguimiento con reclutadoras y, si lo activas, enviarte recordatorios de citas.
-          Al registrarte aceptas el{' '}
+          Los datos personales recabados serán protegidos, incorporados y tratados en el
+          Sistema de Datos Personales de NKUVO IDEAS SAS DE CV. Dichos datos serán
+          utilizados para las siguientes finalidades: para el registro de tu cuenta.
+          Los datos no serán transferidos a terceros. Si deseas conocer nuestro aviso de
+          privacidad integral o ejercer tus derechos ARCO, puedes consultar el sitio web{' '}
           <a href="https://www.nkuvo.com" target="_blank" rel="noreferrer" style={{ color: 'var(--md-primary)' }}>
-            Aviso de Privacidad
-          </a>
-          {' '}(LFPDPPP) de NKUVO Labs.
+            www.nkuvo.com
+          </a>.
         </p>
       </div>
     </div>
