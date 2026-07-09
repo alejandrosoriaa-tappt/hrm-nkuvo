@@ -1,15 +1,10 @@
 import axios from 'axios'
 
-// Adaptado de backend/src/services/tappt.js. La integración original del CRM
-// es de una sola vía: notifica a UN número (el de Alejandro) cuando se crea
-// un follow-up. Aquí notify_to es dinámico (el teléfono del propio candidato)
-// porque cada usuario del HRM necesita su propio recordatorio de cita, no un
-// solo dueño de cuenta. Pendiente confirmar con el equipo Tappt si el
-// endpoint /api/integrations/crm/followups acepta destinatarios arbitrarios
-// o si hace falta un endpoint B2C distinto.
+// Conector HRM → Tappt (recordatorios de citas por WhatsApp).
+// Mismo endpoint que el CRM NKUVO; aquí notify_to es el teléfono del candidato.
 //
 // Variables de entorno (servicio HRM en Railway):
-//   TAPPT_API_URL — URL base del backend de Tappt
+//   TAPPT_API_URL — URL base del backend de Tappt (ej. https://www.tappt.lat)
 //   TAPPT_API_KEY — API key compartida entre HRM y Tappt
 
 const TAPPT_API_URL = process.env.TAPPT_API_URL
@@ -19,14 +14,44 @@ export function tapptEnabled() {
   return Boolean(TAPPT_API_URL && TAPPT_API_KEY)
 }
 
+/**
+ * Normaliza un teléfono a formato WhatsApp México: 521 + 10 dígitos.
+ * Acepta 10 dígitos, 52…, 521…, o con espacios/guiones.
+ * @returns {string|null}
+ */
+export function normalizeMexicoPhone(raw) {
+  if (raw == null || raw === '') return null
+  let digits = String(raw).replace(/\D/g, '')
+  if (!digits) return null
+  if (digits.startsWith('00')) digits = digits.slice(2)
+
+  // 521 + 10 dígitos (13) — forma preferida para WA MX
+  if (digits.length === 13 && digits.startsWith('521')) return digits
+  // 52 + 10 dígitos (12) → insertar el 1 de móvil
+  if (digits.length === 12 && digits.startsWith('52')) {
+    return `521${digits.slice(2)}`
+  }
+  // 1 + 10 dígitos (sin código de país)
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `52${digits}`
+  }
+  // 10 dígitos nacionales
+  if (digits.length === 10) return `521${digits}`
+
+  // Otros largos que ya empiezan con 52 (dejar como están si parecen MX)
+  if (digits.length >= 12 && digits.startsWith('52')) return digits
+
+  return null
+}
+
 async function callTappt(path, payload) {
   return axios.post(`${TAPPT_API_URL}${path}`, payload, {
     timeout: 10000,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${TAPPT_API_KEY}`,
-      'X-Source': 'hrm-nkuvo'
-    }
+      'X-Source': 'hrm-nkuvo',
+    },
   })
 }
 
@@ -39,8 +64,13 @@ export function notifyAppointmentCreated(appointment, userPhone) {
     followup_id: appointment.id,
     descripcion: appointment.descripcion,
     fecha_recordatorio: appointment.fecha_cita,
-    notify_to: userPhone
-  }).catch(err => console.error('Tappt notify error (appointment.created):', err.response?.data || err.message))
+    notify_to: userPhone,
+  }).catch(err =>
+    console.error(
+      'Tappt notify error (appointment.created):',
+      err.response?.data || err.message
+    )
+  )
 }
 
 export function notifyAppointmentCancelled(appointmentId) {
@@ -48,6 +78,11 @@ export function notifyAppointmentCancelled(appointmentId) {
 
   callTappt('/api/integrations/crm/followups', {
     event: 'followup.cancelled',
-    followup_id: appointmentId
-  }).catch(err => console.error('Tappt notify error (appointment.cancelled):', err.response?.data || err.message))
+    followup_id: appointmentId,
+  }).catch(err =>
+    console.error(
+      'Tappt notify error (appointment.cancelled):',
+      err.response?.data || err.message
+    )
+  )
 }

@@ -18,6 +18,11 @@ import {
   createAnthropicMessage,
   parseJsonFromModelText,
 } from '../lib/anthropic.js'
+import {
+  notifyAppointmentCreated,
+  normalizeMexicoPhone,
+  tapptEnabled,
+} from '../services/tappt.js'
 
 const router = Router()
 router.use(authMiddleware)
@@ -695,7 +700,35 @@ router.post('/appointments', async (req, res) => {
     .select()
     .single()
   if (error) return res.status(500).json({ error: error.message })
-  res.status(201).json(data)
+
+  // Recordatorio WhatsApp vía Tappt (fire-and-forget). Destino = teléfono del candidato.
+  const rawPhone = req.user?.user_metadata?.telefono
+  const candidatePhone = normalizeMexicoPhone(rawPhone)
+
+  if (!candidatePhone) {
+    console.warn('Tappt: cita creada sin teléfono de perfil normalizable', {
+      userId: req.user.id,
+      rawPhone: rawPhone || null,
+    })
+    return res.status(201).json({
+      ...data,
+      tappt_notified: false,
+      tappt_warning:
+        'No hay un teléfono válido en tu perfil (metadata.telefono); no se enviará recordatorio por WhatsApp.',
+    })
+  }
+
+  if (!tapptEnabled()) {
+    console.warn('Tappt: cita creada pero TAPPT_API_URL/TAPPT_API_KEY no configurados')
+    return res.status(201).json({
+      ...data,
+      tappt_notified: false,
+      tappt_warning: 'Recordatorios WhatsApp no configurados en el servidor.',
+    })
+  }
+
+  notifyAppointmentCreated(data, candidatePhone)
+  res.status(201).json({ ...data, tappt_notified: true })
 })
 
 router.put('/appointments/:id', async (req, res) => {
