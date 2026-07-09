@@ -701,12 +701,14 @@ router.post('/appointments', async (req, res) => {
     .single()
   if (error) return res.status(500).json({ error: error.message })
 
-  // Recordatorio WhatsApp vía Tappt (fire-and-forget). Destino = teléfono del candidato.
+  // Recordatorio WhatsApp vía Tappt. La cita siempre se crea; el estado de
+  // Tappt se devuelve en tappt_notified / tappt_warning (await real).
   const rawPhone = req.user?.user_metadata?.telefono
   const candidatePhone = normalizeMexicoPhone(rawPhone)
+  const fullName = req.user?.user_metadata?.full_name || null
 
   if (!candidatePhone) {
-    console.warn('Tappt: cita creada sin teléfono de perfil normalizable', {
+    console.warn('[tappt] cita creada sin teléfono normalizable', {
       userId: req.user.id,
       rawPhone: rawPhone || null,
     })
@@ -714,21 +716,35 @@ router.post('/appointments', async (req, res) => {
       ...data,
       tappt_notified: false,
       tappt_warning:
-        'No hay un teléfono válido en tu perfil (metadata.telefono); no se enviará recordatorio por WhatsApp.',
+        'No hay un teléfono válido en tu perfil; no se enviará recordatorio por WhatsApp. Agrégalo al registrarte o contacta soporte.',
     })
   }
 
   if (!tapptEnabled()) {
-    console.warn('Tappt: cita creada pero TAPPT_API_URL/TAPPT_API_KEY no configurados')
+    console.warn('[tappt] cita creada pero TAPPT_API_URL/TAPPT_API_KEY no configurados')
     return res.status(201).json({
       ...data,
       tappt_notified: false,
-      tappt_warning: 'Recordatorios WhatsApp no configurados en el servidor.',
+      tappt_warning: 'Recordatorios WhatsApp no configurados en el servidor (faltan variables Tappt).',
     })
   }
 
-  notifyAppointmentCreated(data, candidatePhone)
-  res.status(201).json({ ...data, tappt_notified: true })
+  const tapptResult = await notifyAppointmentCreated(data, candidatePhone, { fullName })
+  if (!tapptResult.ok) {
+    return res.status(201).json({
+      ...data,
+      tappt_notified: false,
+      tappt_warning:
+        tapptResult.error ||
+        'No se pudo registrar el recordatorio en Tappt. La cita quedó guardada.',
+      tappt_error: tapptResult.error || null,
+    })
+  }
+
+  res.status(201).json({
+    ...data,
+    tappt_notified: true,
+  })
 })
 
 router.put('/appointments/:id', async (req, res) => {

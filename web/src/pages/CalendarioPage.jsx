@@ -21,6 +21,7 @@ export default function CalendarioPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [tapptWarning, setTapptWarning] = useState(null)
   const [selectedDay, setSelectedDay] = useState(null)
 
   const load = () => {
@@ -86,23 +87,37 @@ export default function CalendarioPage() {
     setForm({ ...EMPTY_FORM, fecha_cita: fecha })
     setModal('new')
     setError(null)
+    setTapptWarning(null)
   }
 
   const openEdit = (a) => {
     setForm({ descripcion: a.descripcion || '', fecha_cita: a.fecha_cita?.slice(0, 16), recruiter_id: a.recruiter_id || '' })
     setModal(a)
     setError(null)
+    setTapptWarning(null)
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
     setSaving(true)
     setError(null)
+    setTapptWarning(null)
     try {
       const payload = { descripcion: form.descripcion, fecha_cita: form.fecha_cita }
       if (form.recruiter_id) payload.recruiter_id = form.recruiter_id
       if (modal === 'new') {
-        await hrmAPI.createAppointment(payload)
+        const res = await hrmAPI.createAppointment(payload)
+        const body = res.data || {}
+        if (body.tappt_notified === false) {
+          setTapptWarning(
+            body.tappt_warning ||
+            'La cita se guardó, pero no se pudo enviar el recordatorio por WhatsApp.'
+          )
+          // Mantener el aviso visible fuera del modal
+          setModal(null)
+          load()
+          return
+        }
       } else {
         await hrmAPI.updateAppointment(modal.id, payload)
       }
@@ -143,6 +158,25 @@ export default function CalendarioPage() {
           <Plus size={15} /> Nueva cita
         </button>
       </div>
+
+      {tapptWarning && (
+        <div
+          className="alert alert-info"
+          style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}
+        >
+          <span style={{ fontSize: '0.8125rem', lineHeight: 1.5 }}>
+            <strong>Cita guardada.</strong> {tapptWarning}
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setTapptWarning(null)}
+            style={{ flexShrink: 0 }}
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '1.5rem', alignItems: 'start' }}>
         {/* Calendario */}

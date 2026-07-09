@@ -16,7 +16,6 @@ export function tapptEnabled() {
 
 /**
  * Normaliza un teléfono a formato WhatsApp México: 521 + 10 dígitos.
- * Acepta 10 dígitos, 52…, 521…, o con espacios/guiones.
  * @returns {string|null}
  */
 export function normalizeMexicoPhone(raw) {
@@ -25,23 +24,22 @@ export function normalizeMexicoPhone(raw) {
   if (!digits) return null
   if (digits.startsWith('00')) digits = digits.slice(2)
 
-  // 521 + 10 dígitos (13) — forma preferida para WA MX
   if (digits.length === 13 && digits.startsWith('521')) return digits
-  // 52 + 10 dígitos (12) → insertar el 1 de móvil
   if (digits.length === 12 && digits.startsWith('52')) {
     return `521${digits.slice(2)}`
   }
-  // 1 + 10 dígitos (sin código de país)
   if (digits.length === 11 && digits.startsWith('1')) {
     return `52${digits}`
   }
-  // 10 dígitos nacionales
   if (digits.length === 10) return `521${digits}`
-
-  // Otros largos que ya empiezan con 52 (dejar como están si parecen MX)
   if (digits.length >= 12 && digits.startsWith('52')) return digits
 
   return null
+}
+
+function maskPhone(phone) {
+  if (!phone || phone.length < 4) return '****'
+  return `${'*'.repeat(Math.max(0, phone.length - 4))}${phone.slice(-4)}`
 }
 
 async function callTappt(path, payload) {
@@ -55,34 +53,91 @@ async function callTappt(path, payload) {
   })
 }
 
-// Fire-and-forget: nunca bloquea ni rompe la respuesta del HRM si Tappt falla.
-export function notifyAppointmentCreated(appointment, userPhone) {
-  if (!tapptEnabled() || !userPhone) return
+/**
+ * Notifica a Tappt la creación de una cita.
+ * Awaitable: devuelve { ok, status?, error? } sin lanzar (salvo uso interno).
+ *
+ * @param {object} appointment — fila de hrm_appointments
+ * @param {string} userPhone — WA normalizado (521…)
+ * @param {{ fullName?: string|null }} [opts]
+ */
+export async function notifyAppointmentCreated(appointment, userPhone, opts = {}) {
+  if (!tapptEnabled()) {
+    console.warn('[tappt] notifyAppointmentCreated skipped: TAPPT env missing')
+    return { ok: false, error: 'TAPPT_API_URL / TAPPT_API_KEY no configurados' }
+  }
+  if (!userPhone) {
+    console.warn('[tappt] notifyAppointmentCreated skipped: no phone')
+    return { ok: false, error: 'Teléfono de destino vacío' }
+  }
 
-  callTappt('/api/integrations/crm/followups', {
+  const fullName = opts.fullName || null
+  const payload = {
     event: 'followup.created',
     followup_id: appointment.id,
-    descripcion: appointment.descripcion,
+    descripcion: appointment.descripcion || 'Cita agendada en HRM',
     fecha_recordatorio: appointment.fecha_cita,
     notify_to: userPhone,
-  }).catch(err =>
-    console.error(
-      'Tappt notify error (appointment.created):',
-      err.response?.data || err.message
-    )
-  )
+    // Tappt arma el texto con cliente.razon_social (sigue prefijando "NKUVO CRM"
+    // en su plantilla; al menos el cuerpo dice HRM NKUVO).
+    cliente: {
+      razon_social: 'HRM NKUVO',
+      nombre_contacto: fullName,
+      telefono: userPhone,
+    },
+  }
+
+  console.log('[tappt] notifyAppointmentCreated → request', {
+    followup_id: appointment.id,
+    notify_to: maskPhone(userPhone),
+    fecha_recordatorio: appointment.fecha_cita,
+    descripcion: payload.descripcion,
+    cliente: payload.cliente.razon_social,
+  })
+
+  try {
+    const res = await callTappt('/api/integrations/crm/followups', payload)
+    console.log('[tappt] notifyAppointmentCreated ← success', {
+      followup_id: appointment.id,
+      status: res.status,
+      data: res.data,
+    })
+    return { ok: true, status: res.status, data: res.data }
+  } catch (err) {
+    const detail = err.response?.data || err.message
+    const status = err.response?.status
+    console.error('[tappt] notifyAppointmentCreated ← error', {
+      followup_id: appointment.id,
+      status,
+      error: detail,
+    })
+    const msg =
+      (typeof detail === 'object' && (detail.error || detail.message)) ||
+      (typeof detail === 'string' ? detail : null) ||
+      'Error al contactar Tappt'
+    return { ok: false, status, error: String(msg) }
+  }
 }
 
+/** Fire-and-forget cancelación (no bloquea la UI). */
 export function notifyAppointmentCancelled(appointmentId) {
   if (!tapptEnabled()) return
 
+  console.log('[tappt] notifyAppointmentCancelled → request', { followup_id: appointmentId })
   callTappt('/api/integrations/crm/followups', {
     event: 'followup.cancelled',
     followup_id: appointmentId,
-  }).catch(err =>
-    console.error(
-      'Tappt notify error (appointment.cancelled):',
-      err.response?.data || err.message
+  })
+    .then(res =>
+      console.log('[tappt] notifyAppointmentCancelled ← success', {
+        followup_id: appointmentId,
+        status: res.status,
+      })
     )
-  )
+    .catch(err =>
+      console.error(
+        '[tappt] notifyAppointmentCancelled ← error',
+        err.response?.data || err.message
+      )
+    )
 }
