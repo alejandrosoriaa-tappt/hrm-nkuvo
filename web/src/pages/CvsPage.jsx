@@ -140,8 +140,9 @@ export default function CvsPage() {
             System) para recibir CVs, y que <strong>~75% de los CVs se descartan automáticamente</strong> por
             problemas de formato — tablas, columnas, contacto ilegible o secciones sin nombre estándar —
             antes de que una persona los lea. No importa qué tan bueno sea tu perfil: si el ATS no puede
-            leerlo, nunca llega al reclutador. Por eso el ATS check (formato) y la reescritura con IA
-            (contenido) trabajan juntos en esta página.
+            leerlo, nunca llega al reclutador. Por eso el ATS check (score de formato) y
+            “Sugerir con IA” (pasos concretos para llegar al 100% de compliance ATS) trabajan
+            juntos en esta página.
           </p>
         </div>
       </div>
@@ -230,10 +231,10 @@ export default function CvsPage() {
                 <button
                   className="btn btn-outline btn-sm"
                   onClick={() => openRewrite(cv)}
-                  title="Reescribir contenido con IA"
+                  title="Sugerencias de formato ATS con IA (Pro)"
                 >
                   <Wand2 size={14} />
-                  Reescribir con IA
+                  Sugerir con IA
                 </button>
                 <button
                   className="btn btn-ghost btn-icon btn-sm"
@@ -358,37 +359,32 @@ export default function CvsPage() {
         </div>
       )}
 
-      {/* Modal Reescritura con IA */}
+      {/* Modal Sugerir con IA (formato ATS) */}
       {rewriteModal && (
         <div className="modal-backdrop" onClick={() => setRewriteModal(null)}>
           <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">Reescribir con IA — {rewriteModal.nombre}</h2>
+            <h2 className="modal-title">Sugerir con IA — {rewriteModal.nombre}</h2>
             <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '1.25rem' }}>
-              Sugerencias sección por sección para sonar más claro y con más impacto — siempre con tu
-              propia experiencia, nunca inventada. El objetivo es sonar como tú, no genérico.
+              Pasos concretos de <strong>formato y estructura</strong> para que un ATS lea tu CV
+              correctamente. No reescribe tu experiencia: te dice qué editar para llegar a
+              100% de compliance ATS.
             </p>
 
-            {!rewriteResult && (
+            {!rewriteResult && !rewriteLoading && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
-                <div className="input-group">
-                  <label className="input-label">¿A qué puesto quieres aplicar? (opcional)</label>
-                  <input
-                    className="input"
-                    placeholder="Ej: Gerente Comercial en industria farmacéutica"
-                    value={rewriteContexto}
-                    onChange={e => setRewriteContexto(e.target.value)}
-                  />
-                </div>
                 <button className="btn btn-primary btn-sm" onClick={runRewrite} disabled={rewriteLoading}>
-                  {rewriteLoading ? <span className="spinner spinner-sm" /> : <Wand2 size={15} />}
-                  {rewriteLoading ? 'Generando…' : 'Generar sugerencias'}
+                  <Wand2 size={15} />
+                  Generar sugerencias ATS
                 </button>
               </div>
             )}
 
             {rewriteLoading && (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '2rem' }}>
                 <div className="spinner" />
+                <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
+                  Analizando formato del CV…
+                </p>
               </div>
             )}
 
@@ -396,7 +392,7 @@ export default function CvsPage() {
               <div className="alert alert-info" style={{ flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem' }}>
                   <Lock size={14} style={{ flexShrink: 0 }} />
-                  Reescritura con IA disponible con plan Pro.
+                  Sugerencias con IA disponibles con plan Pro.
                 </div>
                 <Link to="/app/membresia" className="btn btn-primary btn-sm">
                   <CreditCard size={13} /> Suscribirme
@@ -408,35 +404,108 @@ export default function CvsPage() {
               <div className="alert alert-error">{rewriteResult.error}</div>
             )}
 
-            {rewriteResult && !rewriteResult.error && (
+            {rewriteResult && !rewriteResult.error && !rewriteResult.locked && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {(rewriteResult.score_actual != null) && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '1rem',
+                    padding: '0.875rem 1rem', borderRadius: 12,
+                    background: 'var(--md-surface-container-low)'
+                  }}>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: scoreColor(rewriteResult.score_actual), lineHeight: 1 }}>
+                      {rewriteResult.score_actual}%
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 600, fontSize: '0.875rem' }}>Score actual de formato</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
+                        Objetivo: {rewriteResult.objetivo ?? 100}% compliance ATS
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="alert alert-info" style={{ alignItems: 'flex-start' }}>
                   <Wand2 size={16} style={{ flexShrink: 0, marginTop: 1 }} />
                   <span style={{ fontSize: '0.8125rem' }}>{rewriteResult.resumen}</span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {rewriteResult.sugerencias?.map((s, i) => (
-                    <div key={i} style={{
-                      padding: '0.875rem', borderRadius: 10,
-                      background: 'var(--md-surface-container-low)',
-                      border: '1px solid var(--md-outline-variant)'
-                    }}>
-                      <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--md-primary)', marginBottom: '0.5rem' }}>
-                        {s.seccion}
-                      </p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.375rem' }}>
-                        <strong>Antes:</strong> {s.original}
-                      </p>
-                      <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface)', marginBottom: '0.375rem' }}>
-                        <strong>Sugerido:</strong> {s.sugerido}
-                      </p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', fontStyle: 'italic' }}>
-                        {s.razon}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                {rewriteResult.checklist_100?.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--md-on-surface)' }}>
+                      Checklist para 100%
+                    </p>
+                    <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                      {rewriteResult.checklist_100.map((step, i) => (
+                        <li key={i} style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface)', lineHeight: 1.45 }}>
+                          {step}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {rewriteResult.sugerencias?.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--md-on-surface)' }}>
+                      Acciones de formato
+                    </p>
+                    {rewriteResult.sugerencias.map((s, i) => {
+                      const problema = s.problema || s.original
+                      const accion = s.accion || s.sugerido
+                      const prioridad = (s.prioridad || 'media').toLowerCase()
+                      const prioColor = prioridad === 'alta' ? 'var(--md-error)'
+                        : prioridad === 'baja' ? 'var(--md-on-surface-variant)'
+                        : 'var(--md-primary)'
+                      return (
+                        <div key={i} style={{
+                          padding: '0.875rem', borderRadius: 10,
+                          background: 'var(--md-surface-container-low)',
+                          border: '1px solid var(--md-outline-variant)'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                            <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--md-primary)' }}>
+                              {s.seccion || `Sugerencia ${i + 1}`}
+                            </p>
+                            {s.prioridad && (
+                              <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: prioColor, textTransform: 'uppercase' }}>
+                                {prioridad}
+                              </span>
+                            )}
+                          </div>
+                          {problema && (
+                            <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.375rem' }}>
+                              <strong>Problema:</strong> {problema}
+                            </p>
+                          )}
+                          {accion && (
+                            <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface)', marginBottom: '0.375rem' }}>
+                              <strong>Qué hacer:</strong> {accion}
+                            </p>
+                          )}
+                          {s.ejemplo && (
+                            <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.375rem', fontFamily: 'ui-monospace, monospace' }}>
+                              <strong>Ejemplo:</strong> {s.ejemplo}
+                            </p>
+                          )}
+                          {s.razon && (
+                            <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', fontStyle: 'italic' }}>
+                              {s.razon}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {rewriteResult.sugerencias?.length === 0 && (
+                  <div className="alert alert-success" style={{ alignItems: 'flex-start' }}>
+                    <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span style={{ fontSize: '0.8125rem' }}>
+                      No hay correcciones de formato pendientes. Vuelve a correr el ATS check para confirmar el score.
+                    </span>
+                  </div>
+                )}
 
                 <button className="btn btn-outline btn-sm" onClick={() => { setRewriteResult(null); setRewriteContexto('') }}>
                   <Wand2 size={14} /> Regenerar

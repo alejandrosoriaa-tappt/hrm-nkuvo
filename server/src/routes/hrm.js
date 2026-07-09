@@ -351,61 +351,14 @@ router.delete('/cvs/:id', async (req, res) => {
   res.status(204).end()
 })
 
-// ATS Check — analiza el FORMATO del CV, no su contenido/relevancia.
-// A propósito no pide descripción de puesto: al subir el CV el candidato
-// todavía no sabe a qué vacante específica va a aplicar, así que no hay
-// nada contra qué comparar keywords. Lo que sí podemos evaluar sin esa
-// info es si la estructura del archivo es legible por un ATS cualquiera:
-// secciones estándar, contacto detectable, tablas/columnas, longitud, etc.
-//
-// El score y la lista de problemas encontrados son gratis. El "cómo
-// arreglarlo" (fix) de cada problema se oculta detrás del plan Pro.
-router.post('/cvs/:id/ats-check', async (req, res) => {
-  const userId = req.user.id
+// ATS Check — FORMATO del CV (no contenido/relevancia al puesto).
+// Score y problemas: gratis. "fix" de cada problema: plan Pro.
+// Heurísticas reutilizadas por "Sugerir con IA" (mismo criterio de compliance).
+const ATS_PASSING_SCORE = 90
 
-  // Obtener el CV
-  const { data: cv, error: fetchErr } = await supabase
-    .from('hrm_cvs')
-    .select('*')
-    .eq('id', req.params.id)
-    .eq('user_id', userId)
-    .single()
-  if (fetchErr || !cv) return res.status(404).json({ error: 'CV no encontrado' })
-
-  // Descargar de Storage
-  const { data: fileData, error: dlErr } = await supabase.storage
-    .from('cvs')
-    .download(cv.storage_path)
-  if (dlErr) return res.status(500).json({ error: 'No se pudo descargar el CV' })
-
-  // Extraer texto del archivo
-  let cvText = ''
-  try {
-    const buffer = Buffer.from(await fileData.arrayBuffer())
-    const ext = cv.storage_path.split('.').pop().toLowerCase()
-
-    if (ext === 'pdf') {
-      // pdf-parse importado dinámicamente para evitar el warning del constructor
-      const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default
-      const result = await pdfParse(buffer)
-      cvText = result.text
-    } else if (ext === 'docx') {
-      const mammoth = (await import('mammoth')).default
-      const result = await mammoth.extractRawText({ buffer })
-      cvText = result.value
-    } else {
-      return res.status(400).json({ error: 'Formato de archivo no soportado para ATS check' })
-    }
-  } catch (err) {
-    console.error('ATS text extraction error:', err)
-    return res.status(500).json({ error: 'Error extrayendo texto del CV' })
-  }
-
-  const cvTextLower = cvText.toLowerCase()
+function analyzeAtsFormat(cvText) {
+  const cvTextLower = (cvText || '').toLowerCase()
   const wordCount = (cvText.match(/\S+/g) || []).length
-
-  // Cada check evalúa un aspecto de FORMATO (no de contenido/relevancia).
-  // "fix" solo se manda al cliente si el usuario tiene plan Pro.
   const checks = []
 
   const sections = [
@@ -423,7 +376,6 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
     })
   })
 
-  // Contacto detectable: email y teléfono con formato reconocible
   const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(cvText)
   checks.push({
     name: 'Correo electrónico detectable',
@@ -440,7 +392,6 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
     fix: hasPhone ? null : 'Incluye tu celular en un solo bloque de texto, ej: 442 123 4567, sin separarlo con símbolos raros.',
   })
 
-  // Tablas/columnas múltiples — los parsers de texto de los ATS las desordenan
   const looksLikeTables = cvTextLower.includes('\t') || (cvText.match(/\s{5,}/g) || []).length > 10
   checks.push({
     name: 'Sin tablas o columnas múltiples',
@@ -449,7 +400,6 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
     fix: looksLikeTables ? 'Evita tablas y diseños de dos columnas — cuando un ATS los lee como texto plano, el orden de la información se rompe. Usa un diseño de una sola columna.' : null,
   })
 
-  // Longitud razonable — muy corto (falta info) o excesivo (dificulta el parseo/lectura)
   const lengthOk = wordCount >= 150 && wordCount <= 1200
   checks.push({
     name: 'Longitud adecuada',
@@ -462,7 +412,6 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
       : 'Recorta a lo más relevante de los últimos 10 años. Apunta a 1-2 páginas (aprox. 400-800 palabras).',
   })
 
-  // Fechas en experiencia — sin años, un ATS no puede armar tu cronología
   const hasDates = /\b(19|20)\d{2}\b/.test(cvText)
   checks.push({
     name: 'Fechas de experiencia',
@@ -473,41 +422,50 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
 
   const passedCount = checks.filter(c => c.passed).length
   const score = Math.round((passedCount / checks.length) * 100)
+  return { checks, score, passedCount, wordCount, totalChecks: checks.length }
+}
 
-  // ¿El usuario tiene plan Pro? Solo Pro ve el "fix" de cada problema.
-  const { data: sub } = await supabase
-    .from('hrm_subscriptions')
-    .select('status')
+router.post('/cvs/:id/ats-check', async (req, res) => {
+  const userId = req.user.id
+
+  const { data: cv, error: fetchErr } = await supabase
+    .from('hrm_cvs')
+    .select('*')
+    .eq('id', req.params.id)
     .eq('user_id', userId)
-    .maybeSingle()
-  const isPro = sub?.status === 'active'
+    .single()
+  if (fetchErr || !cv) return res.status(404).json({ error: 'CV no encontrado' })
+
+  let cvText = ''
+  try {
+    cvText = await extractCvText(supabase, cv)
+  } catch (err) {
+    console.error('ATS text extraction error:', err)
+    return res.status(500).json({ error: err.message || 'Error extrayendo texto del CV' })
+  }
+
+  const { checks, score, passedCount } = analyzeAtsFormat(cvText)
+  const isPro = await isProUser(supabase, userId, req.user.email)
 
   const results = checks.map(({ fix, ...rest }) => ({
     ...rest,
     fix: isPro ? fix : (rest.passed ? null : undefined), // undefined = "bloqueado, suscríbete"
   }))
 
-  // Actualizar ats_score en BD
   await supabase
     .from('hrm_cvs')
     .update({ ats_score: score })
     .eq('id', cv.id)
 
-  // Criterio duro a propósito: un reclutador solo alcanza a revisar una
-  // fracción de los CVs que le llegan a una vacante (a veces 10 de 100).
-  // Cualquier score debajo de PASSING_SCORE deja al candidato en
-  // desventaja frente a los que sí tienen el formato perfecto — no es un
-  // "aprobado/reprobado" suave, es competir por espacio en esa fracción.
-  const PASSING_SCORE = 90
-  const passesThreshold = score >= PASSING_SCORE
+  const passesThreshold = score >= ATS_PASSING_SCORE
 
   res.json({
     score,
-    passingScore: PASSING_SCORE,
+    passingScore: ATS_PASSING_SCORE,
     passesThreshold,
     verdict: passesThreshold
       ? 'Tu CV tiene el formato que un ATS espera — no lo está descartando de entrada.'
-      : `Por debajo de ${PASSING_SCORE}. Los reclutadores suelen revisar solo una fracción de los CVs que reciben (a veces 10 de 100) — con este formato tu CV queda en desventaja frente a los que sí están al 100%.`,
+      : `Por debajo de ${ATS_PASSING_SCORE}. Los reclutadores suelen revisar solo una fracción de los CVs que reciben (a veces 10 de 100) — con este formato tu CV queda en desventaja frente a los que sí están al 100%.`,
     totalChecks: checks.length,
     passedChecks: passedCount,
     results,
@@ -515,21 +473,24 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
   })
 })
 
-// Reescritura de CV con IA — Pro. A diferencia del ATS check (formato), aquí
-// SÍ generamos texto: sugerencias sección por sección para sonar más fuerte,
-// sin inventar experiencia que el candidato no tenga y sin perder su voz.
-// Nunca vender esto como "la IA es mejor que tu CV" — el ángulo es
-// "sonar como tú, no genérico" (instrucción explícita de producto/marketing).
+// Sugerir con IA — Pro. Sugerencias de FORMATO y estructura ATS (no reescribe
+// contenido narrativo). Objetivo: que el usuario edite el archivo y llegue a
+// 100% compliance en el ATS check. Cachea en rewrite_suggestions.
 router.post('/cvs/:id/rewrite', async (req, res) => {
   const userId = req.user.id
 
   const isPro = await isProUser(supabase, userId, req.user.email)
   if (!isPro) {
-    return res.status(403).json({ error: 'Reescritura con IA disponible en el plan Pro.', locked: true })
+    return res.status(403).json({
+      error: 'Sugerencias con IA disponibles en el plan Pro.',
+      locked: true,
+    })
   }
 
   if (!anthropicEnabled()) {
-    return res.status(503).json({ error: 'Reescritura con IA no configurada todavía. Intenta más tarde.' })
+    return res.status(503).json({
+      error: 'Sugerencias con IA no configuradas todavía. Intenta más tarde.',
+    })
   }
 
   const { data: cv, error: fetchErr } = await supabase
@@ -544,33 +505,93 @@ router.post('/cvs/:id/rewrite', async (req, res) => {
   try {
     cvText = await extractCvText(supabase, cv)
   } catch (err) {
-    console.error('CV rewrite text extraction error:', err)
+    console.error('CV AI suggest text extraction error:', err)
     return res.status(500).json({ error: err.message || 'Error extrayendo texto del CV' })
   }
 
-  const contexto = (req.body?.contexto || '').toString().slice(0, 500)
+  const analysis = analyzeAtsFormat(cvText)
+  const failedChecks = analysis.checks.filter(c => !c.passed)
 
-  const systemPrompt = `Eres un editor experto en CVs para candidatos en México. Tu trabajo es sugerir mejoras al CV que te comparten, sección por sección — NUNCA reescribes el documento completo de golpe.
+  // Si ya está al 100% en heurísticas, devolver guía de mantenimiento sin gastar tokens.
+  if (failedChecks.length === 0 && analysis.score >= 100) {
+    const alreadyOk = {
+      resumen: 'Tu CV ya pasa todos los checks de formato ATS. No hay bloqueos estructurales detectados.',
+      score_actual: analysis.score,
+      objetivo: 100,
+      checklist_100: analysis.checks.map(c => `✓ ${c.name}`),
+      sugerencias: [],
+    }
+    await supabase
+      .from('hrm_cvs')
+      .update({
+        rewrite_suggestions: alreadyOk,
+        rewrite_generated_at: new Date().toISOString(),
+        ats_score: analysis.score,
+      })
+      .eq('id', cv.id)
+    return res.json(alreadyOk)
+  }
 
-Reglas estrictas:
-- Nunca inventes experiencia, puestos, empresas, logros ni cifras que no estén ya en el CV original. Si algo no tiene un número, no le pongas uno inventado — en su lugar sugiere qué tipo de dato agregar.
-- Prioriza verbos de acción y logros cuantificables cuando el candidato ya los tenga implícitos.
-- El objetivo es que el candidato "suene como él mismo, más claro y con más impacto" — nunca genérico ni como si lo hubiera escrito una IA. Este NO es un ejercicio de "la IA escribe mejor que tú"; es pulir lo que ya escribiste.
-- Considera también legibilidad para ATS (Applicant Tracking Systems): secciones con encabezados estándar, sin depender de tablas/columnas.
-- Responde ÚNICAMENTE con JSON válido, sin texto antes ni después, con esta forma exacta:
-{"resumen": "string corto (2-3 frases) con el diagnóstico general", "sugerencias": [{"seccion": "string, ej. Experiencia - Gerente Comercial", "original": "fragmento original citado tal cual", "sugerido": "versión mejorada", "razon": "por qué este cambio ayuda"}]}`
+  const truncatedText = cvText.length > 14000
+    ? `${cvText.slice(0, 14000)}\n\n[…texto truncado por longitud…]`
+    : cvText
 
-  const userPrompt = contexto
-    ? `Contexto del candidato sobre el puesto que busca: ${contexto}\n\nCV:\n${cvText}`
-    : `CV:\n${cvText}`
+  const failedSummary = failedChecks
+    .map(c => `- ${c.name}: ${c.issue}`)
+    .join('\n')
+
+  const systemPrompt = `Eres un experto en CVs y ATS (Applicant Tracking Systems) para candidatos en México.
+Tu ÚNICO trabajo es proponer mejoras de FORMATO y ESTRUCTURA para que un ATS pueda parsear el CV al 100%.
+
+PROHIBIDO:
+- Reescribir el tono, narrativa o "vender mejor" la experiencia.
+- Inventar puestos, empresas, fechas, logros, habilidades o datos de contacto.
+- Sugerir cambiar el contenido profesional salvo cuando el check de formato lo exige (p. ej. agregar encabezado "Experiencia", poner años en fechas).
+
+OBLIGATORIO:
+- Enfócate en: encabezados de sección estándar, una sola columna (sin tablas), contacto en texto plano, fechas mes/año, longitud, orden legible al parsear a texto.
+- Cada sugerencia debe ser accionable: el usuario debe saber exactamente qué editar en Word/Google Docs/PDF.
+- Prioriza los fallos del ATS check que te pasamos; puedes añadir hallazgos de estructura del texto extraído.
+- Responde ÚNICAMENTE con JSON válido (sin markdown ni texto fuera del JSON), con esta forma exacta:
+{
+  "resumen": "2-3 frases: diagnóstico de formato y qué falta para 100% ATS",
+  "score_actual": <número 0-100 del análisis que te dimos>,
+  "objetivo": 100,
+  "checklist_100": ["paso concreto 1", "paso concreto 2", "..."],
+  "sugerencias": [
+    {
+      "seccion": "ej. Encabezado / Contacto / Experiencia / Estructura del documento",
+      "prioridad": "alta" | "media" | "baja",
+      "problema": "qué falla para el ATS (formato)",
+      "accion": "instrucción clara de edición",
+      "ejemplo": "ejemplo corto de cómo debería verse en texto plano (sin inventar hechos del candidato)",
+      "razon": "por qué el ATS lo necesita"
+    }
+  ]
+}`
+
+  const userPrompt = `Análisis ATS actual (heurístico del producto):
+Score: ${analysis.score}% (${analysis.passedCount}/${analysis.totalChecks} checks)
+Palabras detectadas en texto plano: ${analysis.wordCount}
+Umbral de competitividad del producto: ${ATS_PASSING_SCORE}%
+
+Fallos detectados:
+${failedSummary || '(ninguno crítico en heurística; busca mejoras de estructura residuales)'}
+
+Texto plano extraído del CV (así lo "ve" un ATS):
+---
+${truncatedText}
+---`
+
+  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
 
   let aiResult
   try {
     const anthropic = getAnthropicClient()
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
+      model,
       max_tokens: 3000,
-      temperature: 0.4,
+      temperature: 0.2,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     })
@@ -578,16 +599,31 @@ Reglas estrictas:
     const jsonMatch = rawText.match(/\{[\s\S]*\}/)
     aiResult = JSON.parse(jsonMatch ? jsonMatch[0] : rawText)
   } catch (err) {
-    console.error('CV rewrite AI error:', err)
-    return res.status(500).json({ error: 'No se pudo generar la reescritura. Intenta de nuevo.' })
+    console.error('CV AI suggest error:', err)
+    return res.status(500).json({
+      error: 'No se pudieron generar las sugerencias. Intenta de nuevo.',
+    })
+  }
+
+  // Normalizar campos por si el modelo omite alguno
+  const normalized = {
+    resumen: aiResult.resumen || 'Revisa las sugerencias de formato para mejorar la legibilidad ATS.',
+    score_actual: typeof aiResult.score_actual === 'number' ? aiResult.score_actual : analysis.score,
+    objetivo: 100,
+    checklist_100: Array.isArray(aiResult.checklist_100) ? aiResult.checklist_100 : [],
+    sugerencias: Array.isArray(aiResult.sugerencias) ? aiResult.sugerencias : [],
   }
 
   await supabase
     .from('hrm_cvs')
-    .update({ rewrite_suggestions: aiResult, rewrite_generated_at: new Date().toISOString() })
+    .update({
+      rewrite_suggestions: normalized,
+      rewrite_generated_at: new Date().toISOString(),
+      ats_score: analysis.score,
+    })
     .eq('id', cv.id)
 
-  res.json(aiResult)
+  res.json(normalized)
 })
 
 // ── Agenda / citas ────────────────────────────────────────────────────────

@@ -72,6 +72,7 @@ export const hrmAPI = {
   }),
   deleteCv:              (id)        => api.delete(`/api/hrm/cvs/${id}`),
   checkCvAts:            (id)        => api.post(`/api/hrm/cvs/${id}/ats-check`),
+  // Sugerir con IA: formato/estructura ATS (Pro). Mantiene path /rewrite por compatibilidad.
   rewriteCv:             (id, contexto) => api.post(`/api/hrm/cvs/${id}/rewrite`, { contexto }),
 
   // Agenda / citas
