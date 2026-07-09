@@ -3,8 +3,8 @@ import axios from 'axios'
 // Conector HRM → Tappt (misma estructura que nkuvo-crm-backend/src/services/tappt.js).
 //
 // Diferencia B2C vs CRM: notify_to = teléfono del candidato.
-// Primer contacto / >14 días sin WA: pedimos a Tappt usar plantilla Meta
-// (use_template) porque el mensaje libre falla fuera de la ventana 24h.
+// Confirmación al crear cita: SIEMPRE use_template (plantilla Meta), porque
+// usuarios nuevos no tienen ventana 24h abierta y el texto libre no llega.
 //
 // Variables de entorno (Railway HRM):
 //   TAPPT_API_URL — https://www.tappt.lat
@@ -117,13 +117,13 @@ async function callTappt(path, payload) {
 }
 
 /**
- * Equivalente a notifyFollowupCreated(followup, client) del CRM + flag de template.
+ * Equivalente a notifyFollowupCreated(followup, client) del CRM.
+ * Confirmación inmediata: SIEMPRE pide plantilla Meta (appointment_confirmation /
+ * TAPPT_TEMPLATE_PRO en Tappt) para que llegue a usuarios nuevos sin ventana 24h.
  *
  * @param {object} appointment — { id, descripcion, fecha_cita }
- * @param {object} candidate — { id, razon_social, nombre_contacto, telefono, last_tappt_wa_at? }
- * @param {{ useTemplate?: boolean, supabase?: object }} [opts]
- *   useTemplate: si no se pasa, se asume false (caller debe calcularlo).
- *   supabase: si se pasa y opts.useTemplate no, se calcula needsTemplate.
+ * @param {object} candidate — { id, razon_social, nombre_contacto, telefono }
+ * @param {{ supabase?: object }} [opts]
  */
 export function notifyAppointmentCreated(appointment, candidate, opts = {}) {
   if (!tapptEnabled()) {
@@ -142,12 +142,13 @@ export function notifyAppointmentCreated(appointment, candidate, opts = {}) {
     return
   }
 
-  const useTemplate = Boolean(opts.useTemplate)
+  // Siempre template en el primer mensaje de confirmación (usuarios nuevos / sin 24h)
+  const useTemplate = true
+  const templateName = process.env.HRM_WA_TEMPLATE || 'appointment_confirmation'
   const { dateStr, timeStr } = formatAppointmentDisplay(appointment.fecha_cita)
   const clientName = candidate?.nombre_contacto || 'Candidato'
   const title = (appointment.descripcion || 'Cita con reclutador').slice(0, 60)
 
-  // Payload base CRM + extensiones HRM para template Meta
   const payload = {
     event: 'followup.created',
     followup_id: appointment.id,
@@ -160,29 +161,24 @@ export function notifyAppointmentCreated(appointment, candidate, opts = {}) {
       nombre_contacto: clientName,
       telefono: candidate?.telefono || null,
     },
-    // Extensiones (Tappt las usa si está actualizado; si no, ignora y manda texto)
-    use_template: useTemplate,
-    message_mode: useTemplate ? 'template' : 'text',
-    // Nombre lógico; Tappt mapea a TAPPT_TEMPLATE_PRO / appointment confirmation
-    template_name: useTemplate
-      ? (process.env.HRM_WA_TEMPLATE || 'appointment_confirmation')
-      : null,
-    template_params: useTemplate
-      ? {
-          client_name: clientName,
-          business_name: 'HRM NKUVO',
-          title,
-          date: dateStr,
-          time: timeStr || 'Por confirmar',
-        }
-      : null,
+    use_template: true,
+    message_mode: 'template',
+    template_name: templateName,
+    template_params: {
+      client_name: clientName,
+      business_name: 'HRM NKUVO',
+      title,
+      date: dateStr,
+      time: timeStr || 'Por confirmar',
+    },
   }
 
   console.log('Tappt notify (appointment.created):', {
     appointmentId: appointment.id,
     notify_to: notifyTo,
-    use_template: useTemplate,
-    message_mode: payload.message_mode,
+    use_template: true,
+    template_name: templateName,
+    message_mode: 'template',
   })
 
   callTappt('/api/integrations/crm/followups', payload)
@@ -192,9 +188,8 @@ export function notifyAppointmentCreated(appointment, candidate, opts = {}) {
         appointment.id,
         '→',
         notifyTo,
-        useTemplate ? '[template]' : '[text]'
+        `[template:${templateName}]`
       )
-      // Marca última interacción WA en metadata (ayuda a la regla de 14 días)
       if (opts.supabase && candidate?.id) {
         try {
           await opts.supabase.auth.admin.updateUserById(candidate.id, {

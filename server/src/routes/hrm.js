@@ -23,7 +23,6 @@ import {
   notifyAppointmentCancelled,
   normalizeMexicoPhone,
   tapptEnabled,
-  candidateNeedsWaTemplate,
 } from '../services/tappt.js'
 
 // Igual que CRM (toMexicoTimestamptz): datetime-local sin zona → America/Mexico_City (-06:00)
@@ -738,33 +737,16 @@ router.post('/appointments', async (req, res) => {
     const phoneOk = Boolean(normalizeMexicoPhone(candidate.telefono))
     const envOk = tapptEnabled()
 
-    // Primer contacto o >14 días sin WA → plantilla Meta (fuera de ventana 24h)
-    let useTemplate = true
-    try {
-      useTemplate = await candidateNeedsWaTemplate(
-        supabase,
-        userId,
-        data.id,
-        candidate.last_tappt_wa_at
-      )
-    } catch (e) {
-      console.warn('candidateNeedsWaTemplate failed → template', e.message)
-      useTemplate = true
-    }
-
     console.log('TAPPT BLOCK REACHED', {
       appointmentId: data.id,
       hasPhone: phoneOk,
       tapptEnabled: envOk,
-      useTemplate,
+      useTemplate: true, // confirmación siempre por plantilla Meta
     })
 
-    // Fire-and-forget (patrón CRM; no await)
+    // Fire-and-forget: notify siempre con use_template (usuarios nuevos sin ventana 24h)
     if (phoneOk && envOk) {
-      notifyAppointmentCreated(data, candidate, {
-        useTemplate,
-        supabase,
-      })
+      notifyAppointmentCreated(data, candidate, { supabase })
     }
 
     if (!phoneOk) {
@@ -787,7 +769,7 @@ router.post('/appointments', async (req, res) => {
     return res.status(201).json({
       ...data,
       tappt_notified: true,
-      tappt_use_template: useTemplate,
+      tappt_use_template: true,
     })
   } catch (err) {
     console.error('POST /appointments error:', err)
