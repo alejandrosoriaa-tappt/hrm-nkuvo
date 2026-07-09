@@ -65,8 +65,11 @@ SMTP_SECURE=false
 SMTP_USER=tu@email.com
 SMTP_PASS=tu_app_password      # Gmail: contraseña de aplicación, no la de cuenta
 
-# Reescritura de CV con IA (Pro)
+# Sugerir con IA — formato ATS (Pro). Sin esta key el endpoint igual responde
+# con heurísticas del ATS check; con key usa Claude (claude-sonnet-5 por defecto).
 ANTHROPIC_API_KEY=sk-ant-...
+# Opcional: override de modelo
+# ANTHROPIC_MODEL=claude-sonnet-5
 
 # Clip (billing)
 # Link de suscripción generado desde el dashboard de Clip

@@ -7,7 +7,11 @@ import { authMiddleware } from '../middleware/auth.js'
 import { sessionMiddleware } from '../middleware/session.js'
 import { isProUser, checkContactLimit, getFreeContactLimit } from '../lib/subscription.js'
 import { extractCvText } from '../lib/cvText.js'
-import { anthropicEnabled, getAnthropicClient } from '../lib/anthropic.js'
+import {
+  anthropicEnabled,
+  createAnthropicMessage,
+  parseJsonFromModelText,
+} from '../lib/anthropic.js'
 
 const router = Router()
 router.use(authMiddleware)
@@ -473,9 +477,33 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
   })
 })
 
+/** Sugerencias ATS a partir de checks fallidos (sin Anthropic). */
+function buildHeuristicAtsSuggestions(analysis) {
+  const failed = analysis.checks.filter(c => !c.passed)
+  return {
+    resumen: failed.length === 0
+      ? 'Tu CV ya pasa todos los checks de formato ATS. No hay bloqueos estructurales detectados.'
+      : `Score de formato ${analysis.score}%. Corrige estos puntos de estructura para acercarte al 100% de compliance ATS.`,
+    score_actual: analysis.score,
+    objetivo: 100,
+    checklist_100: failed.length === 0
+      ? analysis.checks.map(c => `✓ ${c.name}`)
+      : failed.map(c => c.fix || c.issue || c.name),
+    sugerencias: failed.map(c => ({
+      seccion: c.name,
+      prioridad: 'alta',
+      problema: c.issue,
+      accion: c.fix,
+      ejemplo: null,
+      razon: 'Necesario para que el ATS detecte y clasifique esta información en texto plano.',
+    })),
+    source: 'heuristic',
+  }
+}
+
 // Sugerir con IA — Pro. Sugerencias de FORMATO y estructura ATS (no reescribe
-// contenido narrativo). Objetivo: que el usuario edite el archivo y llegue a
-// 100% compliance en el ATS check. Cachea en rewrite_suggestions.
+// contenido narrativo). Usa Anthropic si ANTHROPIC_API_KEY está configurada;
+// si no, o si Claude falla, devuelve heurísticas del ATS check (misma forma).
 router.post('/cvs/:id/rewrite', async (req, res) => {
   const userId = req.user.id
 
@@ -484,12 +512,6 @@ router.post('/cvs/:id/rewrite', async (req, res) => {
     return res.status(403).json({
       error: 'Sugerencias con IA disponibles en el plan Pro.',
       locked: true,
-    })
-  }
-
-  if (!anthropicEnabled()) {
-    return res.status(503).json({
-      error: 'Sugerencias con IA no configuradas todavía. Intenta más tarde.',
     })
   }
 
@@ -512,15 +534,9 @@ router.post('/cvs/:id/rewrite', async (req, res) => {
   const analysis = analyzeAtsFormat(cvText)
   const failedChecks = analysis.checks.filter(c => !c.passed)
 
-  // Si ya está al 100% en heurísticas, devolver guía de mantenimiento sin gastar tokens.
+  // 100% en heurísticas → respuesta inmediata sin gastar tokens.
   if (failedChecks.length === 0 && analysis.score >= 100) {
-    const alreadyOk = {
-      resumen: 'Tu CV ya pasa todos los checks de formato ATS. No hay bloqueos estructurales detectados.',
-      score_actual: analysis.score,
-      objetivo: 100,
-      checklist_100: analysis.checks.map(c => `✓ ${c.name}`),
-      sugerencias: [],
-    }
+    const alreadyOk = buildHeuristicAtsSuggestions(analysis)
     await supabase
       .from('hrm_cvs')
       .update({
@@ -532,15 +548,18 @@ router.post('/cvs/:id/rewrite', async (req, res) => {
     return res.json(alreadyOk)
   }
 
-  const truncatedText = cvText.length > 14000
-    ? `${cvText.slice(0, 14000)}\n\n[…texto truncado por longitud…]`
-    : cvText
+  let normalized = null
 
-  const failedSummary = failedChecks
-    .map(c => `- ${c.name}: ${c.issue}`)
-    .join('\n')
+  if (anthropicEnabled()) {
+    const truncatedText = cvText.length > 14000
+      ? `${cvText.slice(0, 14000)}\n\n[…texto truncado por longitud…]`
+      : cvText
 
-  const systemPrompt = `Eres un experto en CVs y ATS (Applicant Tracking Systems) para candidatos en México.
+    const failedSummary = failedChecks
+      .map(c => `- ${c.name}: ${c.issue}`)
+      .join('\n')
+
+    const systemPrompt = `Eres un experto en CVs y ATS (Applicant Tracking Systems) para candidatos en México.
 Tu ÚNICO trabajo es proponer mejoras de FORMATO y ESTRUCTURA para que un ATS pueda parsear el CV al 100%.
 
 PROHIBIDO:
@@ -570,7 +589,7 @@ OBLIGATORIO:
   ]
 }`
 
-  const userPrompt = `Análisis ATS actual (heurístico del producto):
+    const userPrompt = `Análisis ATS actual (heurístico del producto):
 Score: ${analysis.score}% (${analysis.passedCount}/${analysis.totalChecks} checks)
 Palabras detectadas en texto plano: ${analysis.wordCount}
 Umbral de competitividad del producto: ${ATS_PASSING_SCORE}%
@@ -583,35 +602,31 @@ Texto plano extraído del CV (así lo "ve" un ATS):
 ${truncatedText}
 ---`
 
-  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
-
-  let aiResult
-  try {
-    const anthropic = getAnthropicClient()
-    const message = await anthropic.messages.create({
-      model,
-      max_tokens: 3000,
-      temperature: 0.2,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    })
-    const rawText = message.content?.[0]?.text || ''
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-    aiResult = JSON.parse(jsonMatch ? jsonMatch[0] : rawText)
-  } catch (err) {
-    console.error('CV AI suggest error:', err)
-    return res.status(500).json({
-      error: 'No se pudieron generar las sugerencias. Intenta de nuevo.',
-    })
-  }
-
-  // Normalizar campos por si el modelo omite alguno
-  const normalized = {
-    resumen: aiResult.resumen || 'Revisa las sugerencias de formato para mejorar la legibilidad ATS.',
-    score_actual: typeof aiResult.score_actual === 'number' ? aiResult.score_actual : analysis.score,
-    objetivo: 100,
-    checklist_100: Array.isArray(aiResult.checklist_100) ? aiResult.checklist_100 : [],
-    sugerencias: Array.isArray(aiResult.sugerencias) ? aiResult.sugerencias : [],
+    try {
+      const { rawText } = await createAnthropicMessage({
+        system: systemPrompt,
+        user: userPrompt,
+        max_tokens: 3000,
+        temperature: 0.2,
+      })
+      const aiResult = parseJsonFromModelText(rawText)
+      normalized = {
+        resumen: aiResult.resumen || 'Revisa las sugerencias de formato para mejorar la legibilidad ATS.',
+        score_actual: typeof aiResult.score_actual === 'number' ? aiResult.score_actual : analysis.score,
+        objetivo: 100,
+        checklist_100: Array.isArray(aiResult.checklist_100) ? aiResult.checklist_100 : [],
+        sugerencias: Array.isArray(aiResult.sugerencias) ? aiResult.sugerencias : [],
+        source: 'anthropic',
+      }
+    } catch (err) {
+      console.error('CV AI suggest Anthropic error (fallback a heurísticas):', err?.message || err)
+      normalized = buildHeuristicAtsSuggestions(analysis)
+      normalized.resumen = `${normalized.resumen} (generado con reglas ATS: Claude no respondió correctamente).`
+    }
+  } else {
+    // Sin ANTHROPIC_API_KEY: aún devolvemos sugerencias accionables del ATS check.
+    console.warn('CV AI suggest: ANTHROPIC_API_KEY ausente — usando heurísticas ATS')
+    normalized = buildHeuristicAtsSuggestions(analysis)
   }
 
   await supabase

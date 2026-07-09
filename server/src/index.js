@@ -1,15 +1,30 @@
-import 'dotenv/config'
+import dotenv from 'dotenv'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { anthropicEnabled } from './lib/anthropic.js'
 import hrmRoutes from './routes/hrm.js'
 import authRoutes from './routes/auth.js'
 import billingRoutes from './routes/billing.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// Cargar .env desde varias rutas (Railway inyecta vars en process.env;
+// en local puede vivir en server/.env o en la raíz del monorepo).
+dotenv.config({ path: path.join(__dirname, '../.env') })          // server/.env
+dotenv.config({ path: path.join(__dirname, '../../.env') })       // repo root .env
+dotenv.config()                                                   // cwd .env
+
+if (!anthropicEnabled()) {
+  console.warn(
+    '[anthropic] ANTHROPIC_API_KEY no configurada — "Sugerir con IA" usará heurísticas ATS locales. ' +
+    'Para Claude: define ANTHROPIC_API_KEY en Railway (o server/.env).'
+  )
+}
+
 const app = express()
 
 app.use(helmet({ contentSecurityPolicy: false }))
