@@ -515,17 +515,29 @@ select.input { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  /* Fallback si el modal sigue creciendo: el backdrop también scrollea */
+  overflow-y: auto;
+  padding: max(0.75rem, env(safe-area-inset-top, 0px))
+           max(0.75rem, env(safe-area-inset-right, 0px))
+           max(0.75rem, env(safe-area-inset-bottom, 0px))
+           max(0.75rem, env(safe-area-inset-left, 0px));
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal {
   background: #FFFFFF;
   border-radius: 24px;
-  padding: 1.75rem;
+  padding: 1.25rem 1.5rem 1.25rem;
   width: 100%;
   max-width: 480px;
+  /* Altura acotada al viewport (dvh tolera barras móviles / zoom) */
+  max-height: min(90dvh, 90vh);
   box-shadow: var(--shadow-4);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: auto; /* centrado cuando el backdrop hace scroll */
 }
 
 [data-theme="dark"] .modal {
@@ -535,15 +547,32 @@ select.input { cursor: pointer; }
 .modal-title {
   font-size: 1.125rem;
   font-weight: 700;
-  margin-bottom: 1.25rem;
+  margin: 0 0 0.75rem;
   color: var(--md-on-surface);
+  flex-shrink: 0;
+  line-height: 1.3;
+  padding-right: 0.25rem;
+}
+
+/* Cuerpo scrollable: el contenido largo no empuja el modal fuera de pantalla */
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 0.25rem;
+  margin-right: -0.15rem;
 }
 
 .modal-actions {
   display: flex;
   gap: 0.75rem;
   justify-content: flex-end;
-  margin-top: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--md-outline-variant);
 }
 
 /* ── Auth page ──────────────────────────────────────────────────────────── */
