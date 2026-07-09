@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs'
 import rateLimit from 'express-rate-limit'
 import { authMiddleware } from '../middleware/auth.js'
 import { sessionMiddleware } from '../middleware/session.js'
-import { isProUser } from '../lib/subscription.js'
+import { isProUser, checkContactLimit, getFreeContactLimit } from '../lib/subscription.js'
 import { extractCvText } from '../lib/cvText.js'
 import { anthropicEnabled, getAnthropicClient } from '../lib/anthropic.js'
 
@@ -56,11 +56,12 @@ router.get('/recruiters', async (req, res) => {
 })
 
 // Detalle: devuelve email/teléfono solo si el usuario tiene plan activo
-// o si todavía no superó el límite de 5 gratuitas.
+// o si todavía no superó FREE_CONTACT_LIMIT desbloqueos gratuitos.
 // Registra el desbloqueo en hrm_unlocked_recruiters.
 router.get('/recruiters/:id', recruiterDetailLimit, async (req, res) => {
   const userId = req.user.id
   const recruiterId = req.params.id
+  const freeLimit = getFreeContactLimit()
 
   // 1. Datos de la reclutadora
   const { data: recruiter, error } = await supabase
@@ -90,7 +91,7 @@ router.get('/recruiters/:id', recruiterDetailLimit, async (req, res) => {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
 
-    if ((count || 0) < 5) {
+    if ((count || 0) < freeLimit) {
       // Registrar este desbloqueo (primera vez)
       await supabase
         .from('hrm_unlocked_recruiters')
@@ -147,16 +148,32 @@ router.get('/contacts', async (req, res) => {
   res.json(result)
 })
 
-// Igual que /recruiters/:id y /contacts (GET): agregar a seguimiento requiere
-// haber desbloqueado ese reclutador (Pro o dentro de las 5 gratis). Sin este
-// check, un usuario free podía seguir agregando reclutadores indefinidamente
-// aunque ya no pudiera ver su contacto — nunca lo empujaba a suscribirse.
+// Agregar a seguimiento (free): dual check —
+// 1) conteo real de filas en hrm_contacts < FREE_CONTACT_LIMIT
+// 2) reclutador ya desbloqueado en hrm_unlocked_recruiters
+// Pro / demo: sin tope ni requisito de unlock.
 router.post('/contacts', async (req, res) => {
   const userId = req.user.id
   const recruiterId = req.body.recruiter_id
 
-  const isPro = await isProUser(supabase, userId, req.user.email)
-  if (!isPro) {
+  let limitCheck
+  try {
+    limitCheck = await checkContactLimit(supabase, userId, req.user.email)
+  } catch (err) {
+    return res.status(500).json({ error: err.message })
+  }
+
+  if (!limitCheck.allowed) {
+    return res.status(403).json({
+      error: `Has alcanzado el límite de ${limitCheck.limit} contactos del plan gratuito (${limitCheck.count}/${limitCheck.limit}). Suscríbete a Pro para agregar contactos ilimitados.`,
+      locked: true,
+      limit: limitCheck.limit,
+      count: limitCheck.count,
+      plan: 'free',
+    })
+  }
+
+  if (!limitCheck.isPro) {
     const { data: unlocked } = await supabase
       .from('hrm_unlocked_recruiters')
       .select('recruiter_id')
@@ -165,8 +182,11 @@ router.post('/contacts', async (req, res) => {
       .maybeSingle()
     if (!unlocked) {
       return res.status(403).json({
-        error: 'Ya usaste tus 5 reclutadores gratis. Suscríbete a Pro para seguir agregando.',
+        error: `Debes desbloquear este reclutador primero (máximo ${limitCheck.limit} gratis en el plan free). Abre su ficha en el directorio o suscríbete a Pro.`,
         locked: true,
+        reason: 'not_unlocked',
+        limit: limitCheck.limit,
+        plan: 'free',
       })
     }
   }
