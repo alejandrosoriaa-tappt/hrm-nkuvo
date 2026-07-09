@@ -694,53 +694,157 @@ router.get('/appointments', async (req, res) => {
 })
 
 router.post('/appointments', async (req, res) => {
+  const userId = req.user.id
+  console.log('[POST /appointments] START', {
+    userId,
+    email: req.user.email || null,
+    bodyKeys: Object.keys(req.body || {}),
+  })
+
   const { data, error } = await supabase
     .from('hrm_appointments')
-    .insert({ ...req.body, user_id: req.user.id })
+    .insert({ ...req.body, user_id: userId })
     .select()
     .single()
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) {
+    console.error('[POST /appointments] INSERT FAILED', { userId, error: error.message })
+    return res.status(500).json({ error: error.message })
+  }
+
+  console.log('[POST /appointments] INSERT OK', {
+    userId,
+    appointmentId: data.id,
+    fecha_cita: data.fecha_cita,
+    descripcion: data.descripcion,
+  })
 
   // Recordatorio WhatsApp vía Tappt. La cita siempre se crea; el estado de
   // Tappt se devuelve en tappt_notified / tappt_warning (await real).
   const rawPhone = req.user?.user_metadata?.telefono
   const candidatePhone = normalizeMexicoPhone(rawPhone)
   const fullName = req.user?.user_metadata?.full_name || null
+  const hasRawPhone = Boolean(rawPhone && String(rawPhone).trim())
+  const hasNormalizedPhone = Boolean(candidatePhone)
+  const tapptEnvOk = tapptEnabled()
+
+  console.log('[POST /appointments] PHONE + ENV CHECK', {
+    userId,
+    appointmentId: data.id,
+    hasRawPhone,
+    rawPhone: rawPhone ?? null,
+    hasNormalizedPhone,
+    candidatePhone: candidatePhone ?? null,
+    fullName,
+    tapptEnabled: tapptEnvOk,
+    TAPPT_API_URL_set: Boolean(process.env.TAPPT_API_URL),
+    TAPPT_API_KEY_set: Boolean(process.env.TAPPT_API_KEY),
+  })
 
   if (!candidatePhone) {
-    console.warn('[tappt] cita creada sin teléfono normalizable', {
-      userId: req.user.id,
-      rawPhone: rawPhone || null,
-    })
-    return res.status(201).json({
+    const responseBody = {
       ...data,
       tappt_notified: false,
       tappt_warning:
         'No hay un teléfono válido en tu perfil; no se enviará recordatorio por WhatsApp. Agrégalo al registrarte o contacta soporte.',
+    }
+    console.warn('[POST /appointments] SKIP TAPPT (no phone) — RESPONSE', {
+      userId,
+      appointmentId: data.id,
+      hasRawPhone,
+      rawPhone: rawPhone ?? null,
+      tappt_notified: false,
+      reason: 'missing_or_invalid_phone',
     })
+    return res.status(201).json(responseBody)
   }
 
-  if (!tapptEnabled()) {
-    console.warn('[tappt] cita creada pero TAPPT_API_URL/TAPPT_API_KEY no configurados')
-    return res.status(201).json({
+  if (!tapptEnvOk) {
+    const responseBody = {
       ...data,
       tappt_notified: false,
       tappt_warning: 'Recordatorios WhatsApp no configurados en el servidor (faltan variables Tappt).',
+    }
+    console.warn('[POST /appointments] SKIP TAPPT (env missing) — RESPONSE', {
+      userId,
+      appointmentId: data.id,
+      candidatePhone,
+      tappt_notified: false,
+      reason: 'tappt_env_missing',
     })
+    return res.status(201).json(responseBody)
   }
 
-  const tapptResult = await notifyAppointmentCreated(data, candidatePhone, { fullName })
+  const intendedPayload = {
+    event: 'followup.created',
+    followup_id: data.id,
+    descripcion: data.descripcion || 'Cita agendada en HRM',
+    fecha_recordatorio: data.fecha_cita,
+    notify_to: candidatePhone,
+    cliente: {
+      razon_social: 'HRM NKUVO',
+      nombre_contacto: fullName,
+      telefono: candidatePhone,
+    },
+  }
+
+  console.log('[POST /appointments] BEFORE notifyAppointmentCreated', {
+    userId,
+    appointmentId: data.id,
+    hasPhone: true,
+    candidatePhone,
+    payload: intendedPayload,
+  })
+
+  let tapptResult
+  try {
+    tapptResult = await notifyAppointmentCreated(data, candidatePhone, { fullName })
+  } catch (err) {
+    // No debería lanzar, pero si lo hace no se pierde el rastro
+    console.error('[POST /appointments] notifyAppointmentCreated THREW', {
+      userId,
+      appointmentId: data.id,
+      message: err?.message,
+      stack: err?.stack,
+    })
+    tapptResult = { ok: false, error: err?.message || 'notifyAppointmentCreated threw' }
+  }
+
+  console.log('[POST /appointments] AFTER notifyAppointmentCreated', {
+    userId,
+    appointmentId: data.id,
+    hasPhone: true,
+    candidatePhone,
+    payloadSent: intendedPayload,
+    resultExact: tapptResult,
+    resultJson: JSON.stringify(tapptResult),
+  })
+
   if (!tapptResult.ok) {
-    return res.status(201).json({
+    const responseBody = {
       ...data,
       tappt_notified: false,
       tappt_warning:
         tapptResult.error ||
         'No se pudo registrar el recordatorio en Tappt. La cita quedó guardada.',
       tappt_error: tapptResult.error || null,
+    }
+    console.warn('[POST /appointments] RESPONSE (tappt failed, cita OK)', {
+      userId,
+      appointmentId: data.id,
+      tappt_notified: false,
+      tappt_error: tapptResult.error || null,
+      tapptResult,
     })
+    return res.status(201).json(responseBody)
   }
 
+  console.log('[POST /appointments] RESPONSE (tappt OK)', {
+    userId,
+    appointmentId: data.id,
+    tappt_notified: true,
+    tapptStatus: tapptResult.status ?? null,
+    tapptData: tapptResult.data ?? null,
+  })
   res.status(201).json({
     ...data,
     tappt_notified: true,

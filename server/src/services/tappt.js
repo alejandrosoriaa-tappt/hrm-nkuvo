@@ -62,13 +62,17 @@ async function callTappt(path, payload) {
  * @param {{ fullName?: string|null }} [opts]
  */
 export async function notifyAppointmentCreated(appointment, userPhone, opts = {}) {
+  const traceId = `tappt-${appointment?.id || 'no-id'}-${Date.now()}`
+
   if (!tapptEnabled()) {
-    console.warn('[tappt] notifyAppointmentCreated skipped: TAPPT env missing')
-    return { ok: false, error: 'TAPPT_API_URL / TAPPT_API_KEY no configurados' }
+    const result = { ok: false, error: 'TAPPT_API_URL / TAPPT_API_KEY no configurados', traceId }
+    console.warn('[tappt] notifyAppointmentCreated SKIP env', { traceId, result })
+    return result
   }
   if (!userPhone) {
-    console.warn('[tappt] notifyAppointmentCreated skipped: no phone')
-    return { ok: false, error: 'Teléfono de destino vacío' }
+    const result = { ok: false, error: 'Teléfono de destino vacío', traceId }
+    console.warn('[tappt] notifyAppointmentCreated SKIP phone', { traceId, result })
+    return result
   }
 
   const fullName = opts.fullName || null
@@ -87,35 +91,57 @@ export async function notifyAppointmentCreated(appointment, userPhone, opts = {}
     },
   }
 
-  console.log('[tappt] notifyAppointmentCreated → request', {
-    followup_id: appointment.id,
-    notify_to: maskPhone(userPhone),
-    fecha_recordatorio: appointment.fecha_cita,
-    descripcion: payload.descripcion,
-    cliente: payload.cliente.razon_social,
+  const url = `${TAPPT_API_URL}/api/integrations/crm/followups`
+  console.log('[tappt] notifyAppointmentCreated BEFORE axios', {
+    traceId,
+    url,
+    notify_to_masked: maskPhone(userPhone),
+    notify_to: userPhone,
+    payload,
+    payloadJson: JSON.stringify(payload),
   })
 
   try {
     const res = await callTappt('/api/integrations/crm/followups', payload)
-    console.log('[tappt] notifyAppointmentCreated ← success', {
-      followup_id: appointment.id,
+    const result = {
+      ok: true,
       status: res.status,
       data: res.data,
+      traceId,
+      payload,
+    }
+    console.log('[tappt] notifyAppointmentCreated AFTER axios OK', {
+      traceId,
+      status: res.status,
+      data: res.data,
+      resultExact: result,
+      resultJson: JSON.stringify(result),
     })
-    return { ok: true, status: res.status, data: res.data }
+    return result
   } catch (err) {
     const detail = err.response?.data || err.message
     const status = err.response?.status
-    console.error('[tappt] notifyAppointmentCreated ← error', {
-      followup_id: appointment.id,
-      status,
-      error: detail,
-    })
     const msg =
       (typeof detail === 'object' && (detail.error || detail.message)) ||
       (typeof detail === 'string' ? detail : null) ||
       'Error al contactar Tappt'
-    return { ok: false, status, error: String(msg) }
+    const result = {
+      ok: false,
+      status: status ?? null,
+      error: String(msg),
+      detail,
+      traceId,
+      payload,
+    }
+    console.error('[tappt] notifyAppointmentCreated AFTER axios ERROR', {
+      traceId,
+      status,
+      error: detail,
+      message: err.message,
+      resultExact: result,
+      resultJson: JSON.stringify(result),
+    })
+    return result
   }
 }
 
