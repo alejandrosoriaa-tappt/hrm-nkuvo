@@ -1,14 +1,43 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Settings, User, Bell, Shield, CreditCard, MessageCircle, ChevronRight } from 'lucide-react'
+import { User, Bell, Shield, CreditCard, MessageCircle, ChevronRight, Phone } from 'lucide-react'
 import useAuthStore from '../store/authStore.js'
 
 const WA_SUPPORT = 'https://wa.me/5215658732336'
 
+/** Solo dígitos; para validar longitud del celular MX. */
+function digitsOnly(value) {
+  return String(value || '').replace(/\D/g, '')
+}
+
+/**
+ * Acepta 10 dígitos nacionales o formas con 52/521.
+ * (Misma idea que normalizeMexicoPhone del backend.)
+ */
+function isValidMexicoPhone(value) {
+  const d = digitsOnly(value)
+  if (d.length === 10) return true
+  if (d.length === 12 && d.startsWith('52')) return true
+  if (d.length === 13 && d.startsWith('521')) return true
+  if (d.length === 11 && d.startsWith('1')) return true
+  return false
+}
+
 export default function ConfiguracionPage() {
-  const { user } = useAuthStore()
+  const { user, updateUserMetadata } = useAuthStore()
   const [notifSaved, setNotifSaved] = useState(false)
   const [notifs, setNotifs] = useState({ citas: true, resumen: false })
+
+  const [telefono, setTelefono] = useState('')
+  const [phoneSaving, setPhoneSaving] = useState(false)
+  const [phoneError, setPhoneError] = useState(null)
+  const [phoneSuccess, setPhoneSuccess] = useState(false)
+
+  // Sincronizar input con metadata del usuario
+  useEffect(() => {
+    const current = user?.user_metadata?.telefono || ''
+    setTelefono(current)
+  }, [user?.id, user?.user_metadata?.telefono])
 
   const handleSaveNotifs = (e) => {
     e.preventDefault()
@@ -16,8 +45,39 @@ export default function ConfiguracionPage() {
     setTimeout(() => setNotifSaved(false), 2000)
   }
 
+  const handleSavePhone = async (e) => {
+    e.preventDefault()
+    setPhoneError(null)
+    setPhoneSuccess(false)
+
+    const trimmed = telefono.trim()
+    if (!trimmed) {
+      setPhoneError('Ingresa tu número celular (10 dígitos).')
+      return
+    }
+    if (!isValidMexicoPhone(trimmed)) {
+      setPhoneError('Número no válido. Usa 10 dígitos (ej. 4421234567) o con lada 52.')
+      return
+    }
+
+    setPhoneSaving(true)
+    try {
+      const result = await updateUserMetadata({ telefono: trimmed })
+      if (!result.success) {
+        setPhoneError(result.error || 'No se pudo guardar el teléfono.')
+        return
+      }
+      setPhoneSuccess(true)
+      setTimeout(() => setPhoneSuccess(false), 3000)
+    } finally {
+      setPhoneSaving(false)
+    }
+  }
+
   const displayName = user?.user_metadata?.full_name || '—'
-  const email       = user?.email || '—'
+  const email = user?.email || '—'
+  const savedPhone = user?.user_metadata?.telefono || ''
+  const phoneDirty = telefono.trim() !== (savedPhone || '').trim()
 
   return (
     <>
@@ -33,13 +93,67 @@ export default function ConfiguracionPage() {
         {/* ── Perfil ── */}
         <div className="card">
           <SectionHeader icon={<User size={18} />} title="Perfil" />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1.25rem' }}>
             <InfoRow label="Nombre" value={displayName} />
-            <InfoRow label="Correo"  value={email} />
-            <InfoRow label="ID"      value={user?.id?.slice(0, 8) + '…'} mono />
+            <InfoRow label="Correo" value={email} />
+            <InfoRow label="ID" value={user?.id?.slice(0, 8) + '…'} mono />
           </div>
-          <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '1rem' }}>
-            Para cambiar nombre o correo ve a la configuración de Supabase.
+
+          {/* Teléfono editable — usado por recordatorios Tappt / WhatsApp */}
+          <form onSubmit={handleSavePhone} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+              <Phone size={16} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
+              <label htmlFor="perfil-telefono" style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--md-on-surface)' }}>
+                Celular (WhatsApp)
+              </label>
+            </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', lineHeight: 1.5, margin: 0 }}>
+              Lo usamos para enviarte recordatorios de citas por WhatsApp.
+              Formato: 10 dígitos sin espacios (ej. <code style={{ fontSize: '0.7rem' }}>4421234567</code>).
+            </p>
+            <div className="input-group" style={{ margin: 0 }}>
+              <input
+                id="perfil-telefono"
+                className="input"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="4421234567"
+                value={telefono}
+                onChange={e => {
+                  setTelefono(e.target.value)
+                  setPhoneError(null)
+                  setPhoneSuccess(false)
+                }}
+                disabled={phoneSaving}
+              />
+            </div>
+            {phoneError && (
+              <div className="alert alert-error" style={{ fontSize: '0.8125rem' }}>{phoneError}</div>
+            )}
+            {phoneSuccess && (
+              <div className="alert alert-success" style={{ fontSize: '0.8125rem' }}>
+                Teléfono guardado. Las próximas citas usarán este número para el recordatorio.
+              </div>
+            )}
+            {!savedPhone && !phoneSuccess && (
+              <div className="alert alert-info" style={{ fontSize: '0.8125rem' }}>
+                Aún no tienes teléfono en tu perfil. Sin él no se envían recordatorios de citas.
+              </div>
+            )}
+            <div>
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={phoneSaving || !phoneDirty}
+              >
+                {phoneSaving ? 'Guardando…' : 'Guardar teléfono'}
+              </button>
+            </div>
+          </form>
+
+          <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '1.25rem' }}>
+            Para cambiar nombre o correo contacta soporte.
           </p>
         </div>
 
@@ -59,7 +173,7 @@ export default function ConfiguracionPage() {
           <form onSubmit={handleSaveNotifs} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
             <Toggle
               label="Recordatorio de citas"
-              description="Recibe un aviso antes de cada entrevista agendada"
+              description="Recibe un aviso antes de cada entrevista agendada (requiere teléfono guardado)"
               checked={notifs.citas}
               onChange={v => setNotifs(n => ({ ...n, citas: v }))}
             />

@@ -117,7 +117,34 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+
+  /**
+   * Actualiza user_metadata en Supabase Auth (merge parcial).
+   * Útil para teléfono y otros campos de perfil editables desde la app.
+   */
+  updateUserMetadata: async (partialMeta) => {
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        data: partialMeta,
+      })
+      if (error) {
+        return { success: false, error: error.message }
+      }
+      set({
+        user: data.user,
+        // Mantener session actual; el user ya trae metadata actualizada
+      })
+      // Refrescar session.user por si el store se apoya en session
+      const { data: sessData } = await supabase.auth.getSession()
+      if (sessData?.session) {
+        set({ session: sessData.session, user: sessData.session.user })
+      }
+      return { success: true, user: data.user }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
 }))
 
 supabase.auth.onAuthStateChange((event, session) => {
