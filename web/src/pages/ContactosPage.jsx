@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Download, ExternalLink, Mail, Phone } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Plus, Pencil, Trash2, Download, ExternalLink, Mail, Phone, Lock } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 const STATUS_LABELS = {
@@ -24,18 +25,28 @@ export default function ContactosPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [exporting, setExporting] = useState(false)
+  const [quota, setQuota] = useState(null)
 
   const load = () => {
     setLoading(true)
-    hrmAPI.listContacts()
-      .then(r => setContacts(r.data || []))
+    Promise.all([hrmAPI.listContacts(), hrmAPI.getContactQuota()])
+      .then(([r, q]) => {
+        setContacts(r.data || [])
+        setQuota(q.data || null)
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }
 
   useEffect(load, [])
 
+  const atContactLimit = Boolean(quota && !quota.isPro && !quota.allowed)
+
   const openNew = () => {
+    if (atContactLimit) {
+      setError(`Has alcanzado el límite de ${quota.limit} contactos del plan gratuito.`)
+      return
+    }
     setForm(EMPTY_FORM)
     setModal('new')
     setError(null)
@@ -58,6 +69,11 @@ export default function ContactosPage() {
     setError(null)
     try {
       if (modal === 'new') {
+        if (atContactLimit) {
+          setError(`Has alcanzado el límite de ${quota.limit} contactos del plan gratuito.`)
+          setSaving(false)
+          return
+        }
         await hrmAPI.createContact(form)
       } else {
         await hrmAPI.updateContact(modal.id, {
@@ -114,16 +130,25 @@ export default function ContactosPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Contactos</h1>
-          <p className="page-subtitle">Seguimiento de reclutadores con quienes ya interactuaste</p>
+          <p className="page-subtitle">
+            Seguimiento de reclutadores con quienes ya interactuaste
+            {quota && !quota.isPro ? ` · ${quota.count}/${quota.limit} del plan gratuito` : ''}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-outline btn-sm" onClick={handleExport} disabled={exporting}>
             <Download size={15} />
             {exporting ? 'Exportando…' : 'Exportar Excel'}
           </button>
-          <button className="btn btn-primary btn-sm" onClick={openNew}>
-            <Plus size={15} /> Nuevo contacto
-          </button>
+          {atContactLimit ? (
+            <Link to="/app/membresia" className="btn btn-primary btn-sm">
+              <Lock size={15} /> Límite free — ver Pro
+            </Link>
+          ) : (
+            <button className="btn btn-primary btn-sm" onClick={openNew}>
+              <Plus size={15} /> Nuevo contacto
+            </button>
+          )}
         </div>
       </div>
 
@@ -140,9 +165,15 @@ export default function ContactosPage() {
           </svg>
           <p style={{ fontWeight: 600 }}>Sin contactos aún</p>
           <p style={{ fontSize: '0.875rem' }}>Agrega un reclutador desde el directorio o usa el botón de arriba.</p>
-          <button className="btn btn-primary btn-sm" onClick={openNew}>
-            <Plus size={15} /> Agregar
-          </button>
+          {atContactLimit ? (
+            <Link to="/app/membresia" className="btn btn-primary btn-sm">
+              <Lock size={15} /> Ver plan Pro
+            </Link>
+          ) : (
+            <button className="btn btn-primary btn-sm" onClick={openNew}>
+              <Plus size={15} /> Agregar
+            </button>
+          )}
         </div>
       ) : (
         <div className="table-wrap">

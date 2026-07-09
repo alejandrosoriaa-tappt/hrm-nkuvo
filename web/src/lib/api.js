@@ -61,6 +61,7 @@ export const hrmAPI = {
 
   // Seguimiento de contacto
   listContacts:          (params)    => api.get('/api/hrm/contacts', { params }),
+  getContactQuota:       ()          => api.get('/api/hrm/contacts/quota'),
   createContact:         (data)      => api.post('/api/hrm/contacts', data),
   updateContact:         (id, data)  => api.put(`/api/hrm/contacts/${id}`, data),
   deleteContact:         (id)        => api.delete(`/api/hrm/contacts/${id}`),

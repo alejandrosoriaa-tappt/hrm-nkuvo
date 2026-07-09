@@ -5,7 +5,13 @@ import ExcelJS from 'exceljs'
 import rateLimit from 'express-rate-limit'
 import { authMiddleware } from '../middleware/auth.js'
 import { sessionMiddleware } from '../middleware/session.js'
-import { isProUser, checkContactLimit, getFreeContactLimit } from '../lib/subscription.js'
+import {
+  isProUser,
+  checkContactLimit,
+  getFreeContactLimit,
+  countUserUnlocks,
+  assertCanCreateContact,
+} from '../lib/subscription.js'
 import { extractCvText } from '../lib/cvText.js'
 import {
   anthropicEnabled,
@@ -89,18 +95,23 @@ router.get('/recruiters/:id', recruiterDetailLimit, async (req, res) => {
   let canSeeContact = isPro || !!existing
 
   if (!canSeeContact) {
-    // Contar cuántas ha desbloqueado antes
-    const { count } = await supabase
-      .from('hrm_unlocked_recruiters')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
+    // Contar desbloqueos — fail closed si no hay número
+    let unlockCount
+    try {
+      unlockCount = await countUserUnlocks(supabase, userId)
+    } catch {
+      const { email: _, telefono: __, sitio_web: ___, ...publicData } = recruiter
+      return res.json({ ...publicData, _contactLocked: true })
+    }
 
-    if ((count || 0) < freeLimit) {
-      // Registrar este desbloqueo (primera vez)
-      await supabase
+    if (unlockCount < freeLimit) {
+      const { error: unlockInsertErr } = await supabase
         .from('hrm_unlocked_recruiters')
         .insert({ user_id: userId, recruiter_id: recruiterId })
-      canSeeContact = true
+      // Si otro request ya insertó (PK), igual consideramos desbloqueado
+      if (!unlockInsertErr || unlockInsertErr.code === '23505') {
+        canSeeContact = true
+      }
     }
   }
 
@@ -152,55 +163,80 @@ router.get('/contacts', async (req, res) => {
   res.json(result)
 })
 
-// Agregar a seguimiento (free): dual check —
-// 1) conteo real de filas en hrm_contacts < FREE_CONTACT_LIMIT
-// 2) reclutador ya desbloqueado en hrm_unlocked_recruiters
-// Pro / demo: sin tope ni requisito de unlock.
+// Cupo freemium de contactos (para UI del directorio / contactos).
+// Debe ir ANTES de rutas con :id si se agregan después.
+router.get('/contacts/quota', async (req, res) => {
+  try {
+    const quota = await checkContactLimit(supabase, req.user.id, req.user.email)
+    let unlockedCount = 0
+    if (!quota.isPro) {
+      try {
+        unlockedCount = await countUserUnlocks(supabase, req.user.id)
+      } catch {
+        unlockedCount = 0
+      }
+    }
+    res.json({
+      ...quota,
+      unlockedCount: quota.isPro ? null : unlockedCount,
+      unlockLimit: quota.isPro ? null : quota.limit,
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Agregar a seguimiento: ÚNICO punto de insert en hrm_contacts.
+// Dual check vía assertCanCreateContact (conteo real + unlock). Pro/demo sin tope.
 router.post('/contacts', async (req, res) => {
   const userId = req.user.id
-  const recruiterId = req.body.recruiter_id
+  const recruiterId = req.body?.recruiter_id
 
-  let limitCheck
-  try {
-    limitCheck = await checkContactLimit(supabase, userId, req.user.email)
-  } catch (err) {
-    return res.status(500).json({ error: err.message })
+  const gate = await assertCanCreateContact(supabase, {
+    userId,
+    email: req.user.email,
+    recruiterId,
+  })
+  if (!gate.ok) {
+    return res.status(gate.status).json(gate.body)
   }
 
-  if (!limitCheck.allowed) {
-    return res.status(403).json({
-      error: `Has alcanzado el límite de ${limitCheck.limit} contactos del plan gratuito (${limitCheck.count}/${limitCheck.limit}). Suscríbete a Pro para agregar contactos ilimitados.`,
-      locked: true,
-      limit: limitCheck.limit,
-      count: limitCheck.count,
-      plan: 'free',
+  // Solo campos permitidos — no reenviar el body completo
+  const row = {
+    user_id: userId,
+    recruiter_id: recruiterId,
+    status: ['contactado', 'en_proceso', 'respuesta', 'descartado'].includes(req.body?.status)
+      ? req.body.status
+      : 'contactado',
+    notas: typeof req.body?.notas === 'string' ? req.body.notas : null,
+    fecha_contacto: req.body?.fecha_contacto || new Date().toISOString(),
+  }
+
+  // Re-chequeo inmediato del cupo justo antes del insert (mitiga race TOCTOU)
+  if (!gate.isPro) {
+    const recheck = await assertCanCreateContact(supabase, {
+      userId,
+      email: req.user.email,
+      recruiterId,
     })
-  }
-
-  if (!limitCheck.isPro) {
-    const { data: unlocked } = await supabase
-      .from('hrm_unlocked_recruiters')
-      .select('recruiter_id')
-      .eq('user_id', userId)
-      .eq('recruiter_id', recruiterId)
-      .maybeSingle()
-    if (!unlocked) {
-      return res.status(403).json({
-        error: `Debes desbloquear este reclutador primero (máximo ${limitCheck.limit} gratis en el plan free). Abre su ficha en el directorio o suscríbete a Pro.`,
-        locked: true,
-        reason: 'not_unlocked',
-        limit: limitCheck.limit,
-        plan: 'free',
-      })
+    if (!recheck.ok) {
+      return res.status(recheck.status).json(recheck.body)
     }
   }
 
   const { data, error } = await supabase
     .from('hrm_contacts')
-    .insert({ ...req.body, user_id: userId })
+    .insert(row)
     .select()
     .single()
-  if (error) return res.status(500).json({ error: error.message })
+
+  if (error) {
+    // unique (user_id, recruiter_id) — ya en seguimiento
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Este reclutador ya está en tus contactos.' })
+    }
+    return res.status(500).json({ error: error.message })
+  }
   res.status(201).json(data)
 })
 

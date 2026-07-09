@@ -11,13 +11,20 @@ export default function ReclutadorasPage() {
   const [selected, setSelected] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [sub, setSub] = useState(null)
+  const [quota, setQuota] = useState(null)
   const [addingContact, setAddingContact] = useState(false)
 
+  const refreshQuota = () =>
+    hrmAPI.getContactQuota()
+      .then(q => setQuota(q.data))
+      .catch(() => setQuota(null))
+
   useEffect(() => {
-    Promise.all([hrmAPI.listRecruiters(), hrmAPI.getSubscription()])
-      .then(([r, s]) => {
+    Promise.all([hrmAPI.listRecruiters(), hrmAPI.getSubscription(), hrmAPI.getContactQuota()])
+      .then(([r, s, q]) => {
         setRecruiters(r.data || [])
         setSub(s.data || { status: 'free' })
+        setQuota(q.data || null)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -45,12 +52,19 @@ export default function ReclutadorasPage() {
 
   const handleAddContact = async () => {
     if (!selected) return
+    // UI guard: free sin cupo de filas en hrm_contacts
+    if (quota && !quota.isPro && !quota.allowed) {
+      navigate('/app/membresia')
+      return
+    }
     setAddingContact(true)
     try {
       await hrmAPI.createContact({ recruiter_id: selected.id })
       alert('Reclutador agregado a tus contactos.')
+      await refreshQuota()
     } catch (err) {
       if (err.response?.data?.locked) {
+        await refreshQuota()
         navigate('/app/membresia')
         return
       }
@@ -64,6 +78,9 @@ export default function ReclutadorasPage() {
   // y el usuario no es Pro — úsalo para bloquear también "Agregar a
   // seguimiento" en vez de solo inferir del email/telefono presentes.
   const isLocked = selected?._contactLocked === true
+  // Tope de filas en hrm_contacts (dual check del backend)
+  const atContactLimit = Boolean(quota && !quota.isPro && !quota.allowed)
+  const cannotAdd = isLocked || atContactLimit
 
   return (
     <>
@@ -71,9 +88,11 @@ export default function ReclutadorasPage() {
         <div>
           <h1 className="page-title">Directorio de reclutadores</h1>
           <p className="page-subtitle">
-            {sub?.status !== 'active'
-              ? 'Plan gratuito: datos de contacto disponibles para los primeros 5 reclutadores'
-              : 'Plan Pro: acceso completo a todos los datos de contacto'}
+            {quota?.isPro || sub?.status === 'active'
+              ? 'Plan Pro: acceso completo a todos los datos de contacto'
+              : `Plan gratuito: hasta ${quota?.limit ?? 5} reclutadores con datos y ${quota?.limit ?? 5} en seguimiento${
+                  quota && !quota.isPro ? ` · ${quota.count}/${quota.limit} contactos` : ''
+                }`}
           </p>
         </div>
       </div>
@@ -166,9 +185,13 @@ export default function ReclutadorasPage() {
                       </a>
                     </InfoRow>
                   )}
-                  {isLocked ? (
+                  {cannotAdd ? (
                     <div className="alert alert-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem', padding: '0.5rem 0.75rem' }}>
-                      <span>Contacto disponible para primeros 5 reclutadores o con plan Pro</span>
+                      <span>
+                        {atContactLimit && !isLocked
+                          ? `Alcanzaste el límite de ${quota.limit} contactos del plan gratuito.`
+                          : `Contacto disponible para los primeros ${quota?.limit ?? 5} reclutadores o con plan Pro.`}
+                      </span>
                       <Link to="/app/membresia" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start' }}>
                         <CreditCard size={13} /> Suscribirme
                       </Link>
@@ -188,10 +211,10 @@ export default function ReclutadorasPage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {isLocked ? (
+                  {cannotAdd ? (
                     <Link to="/app/membresia" className="btn btn-primary btn-sm w-full">
                       <Lock size={14} />
-                      Suscribirme para agregar
+                      {atContactLimit && !isLocked ? 'Límite de contactos — ver Pro' : 'Suscribirme para agregar'}
                     </Link>
                   ) : (
                     <button
