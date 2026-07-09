@@ -71,6 +71,11 @@ ANTHROPIC_API_KEY=sk-ant-...
 # Opcional: override de modelo
 # ANTHROPIC_MODEL=claude-sonnet-5
 
+# Tappt — recordatorios de citas por WhatsApp (mismas keys que nkuvo-crm-backend).
+# notify_to = teléfono del candidato (user_metadata.telefono), no un número fijo.
+TAPPT_API_URL=https://www.tappt.lat
+TAPPT_API_KEY=
+
 # Clip (billing)
 # Link de suscripción generado desde el dashboard de Clip
 CLIP_SUBSCRIPTION_LINK=https://pago.clip.mx/v2/suscripcion/eaadea41-f533-4902-8fb3-a1836c57b83f
