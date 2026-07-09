@@ -55,7 +55,7 @@ export async function checkContactLimit(supabase, userId, email) {
     throw new Error(error.message)
   }
 
-  const current = count || 0
+  const current = typeof count === 'number' ? count : 0
   return {
     allowed: current < limit,
     isPro: false,
