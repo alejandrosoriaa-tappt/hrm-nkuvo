@@ -23,6 +23,7 @@ import {
   notifyAppointmentCancelled,
   normalizeMexicoPhone,
   tapptEnabled,
+  candidateNeedsWaTemplate,
 } from '../services/tappt.js'
 
 // Igual que CRM (toMexicoTimestamptz): datetime-local sin zona → America/Mexico_City (-06:00)
@@ -731,19 +732,41 @@ router.post('/appointments', async (req, res) => {
       razon_social: 'HRM NKUVO',
       nombre_contacto: req.user.user_metadata?.full_name || null,
       telefono: req.user.user_metadata?.telefono || null,
+      last_tappt_wa_at: req.user.user_metadata?.last_tappt_wa_at || null,
     }
 
-    // Fire-and-forget (idéntico al CRM: no await, no tumba la respuesta)
-    console.log('TAPPT BLOCK REACHED', {
-      appointmentId: data.id,
-      hasPhone: Boolean(candidate.telefono),
-      tapptEnabled: tapptEnabled(),
-    })
-    notifyAppointmentCreated(data, candidate)
-
-    // Avisos suaves para la UI (la cita ya está guardada)
     const phoneOk = Boolean(normalizeMexicoPhone(candidate.telefono))
     const envOk = tapptEnabled()
+
+    // Primer contacto o >14 días sin WA → plantilla Meta (fuera de ventana 24h)
+    let useTemplate = true
+    try {
+      useTemplate = await candidateNeedsWaTemplate(
+        supabase,
+        userId,
+        data.id,
+        candidate.last_tappt_wa_at
+      )
+    } catch (e) {
+      console.warn('candidateNeedsWaTemplate failed → template', e.message)
+      useTemplate = true
+    }
+
+    console.log('TAPPT BLOCK REACHED', {
+      appointmentId: data.id,
+      hasPhone: phoneOk,
+      tapptEnabled: envOk,
+      useTemplate,
+    })
+
+    // Fire-and-forget (patrón CRM; no await)
+    if (phoneOk && envOk) {
+      notifyAppointmentCreated(data, candidate, {
+        useTemplate,
+        supabase,
+      })
+    }
+
     if (!phoneOk) {
       return res.status(201).json({
         ...data,
@@ -761,10 +784,10 @@ router.post('/appointments', async (req, res) => {
       })
     }
 
-    // Como el CRM: se disparó el notify; el resultado real va a logs si falla
     return res.status(201).json({
       ...data,
       tappt_notified: true,
+      tappt_use_template: useTemplate,
     })
   } catch (err) {
     console.error('POST /appointments error:', err)

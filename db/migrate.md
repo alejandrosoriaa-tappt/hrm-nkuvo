@@ -73,8 +73,11 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # Tappt — recordatorios de citas por WhatsApp (mismas keys que nkuvo-crm-backend).
 # notify_to = teléfono del candidato (user_metadata.telefono), no un número fijo.
+# Primer contacto / >14 días sin WA → use_template (Tappt usa TAPPT_TEMPLATE_PRO).
 TAPPT_API_URL=https://www.tappt.lat
 TAPPT_API_KEY=
+# Opcional: nombre lógico de plantilla (Tappt mapea a TAPPT_TEMPLATE_PRO)
+# HRM_WA_TEMPLATE=appointment_confirmation
 
 # Clip (billing)
 # Link de suscripción generado desde el dashboard de Clip

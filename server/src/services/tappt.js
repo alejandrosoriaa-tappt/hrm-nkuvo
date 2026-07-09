@@ -2,22 +2,19 @@ import axios from 'axios'
 
 // Conector HRM → Tappt (misma estructura que nkuvo-crm-backend/src/services/tappt.js).
 //
-// Cuando se crea una cita en el HRM, se notifica al backend de Tappt para que
-// (1) confirme por WhatsApp que el recordatorio quedó agendado y
-// (2) envíe el recordatorio por WhatsApp cuando llegue la fecha.
+// Diferencia B2C vs CRM: notify_to = teléfono del candidato.
+// Primer contacto / >14 días sin WA: pedimos a Tappt usar plantilla Meta
+// (use_template) porque el mensaje libre falla fuera de la ventana 24h.
 //
-// El recordatorio SIEMPRE sale por el número de Tappt — el HRM no manda
-// WhatsApp por sí mismo, solo llama a la API de Tappt.
-//
-// Diferencia B2C vs CRM: notify_to es el teléfono del CANDIDATO
-// (user_metadata.telefono normalizado), no un TAPPT_NOTIFY_PHONE fijo.
-//
-// Variables de entorno (Railway HRM — mismas keys que el CRM):
+// Variables de entorno (Railway HRM):
 //   TAPPT_API_URL — https://www.tappt.lat
 //   TAPPT_API_KEY  — API key compartida con Tappt
 
 const TAPPT_API_URL = process.env.TAPPT_API_URL
 const TAPPT_API_KEY = process.env.TAPPT_API_KEY
+
+/** Días sin interacción WA para forzar template de Meta. */
+export const TAPPT_TEMPLATE_IDLE_DAYS = 14
 
 export function tapptEnabled() {
   return Boolean(TAPPT_API_URL && TAPPT_API_KEY)
@@ -25,7 +22,6 @@ export function tapptEnabled() {
 
 /**
  * Normaliza a formato WhatsApp México: 521 + 10 dígitos.
- * (CRM manda TAPPT_NOTIFY_PHONE ya en ese formato; aquí lo garantizamos.)
  */
 export function normalizeMexicoPhone(raw) {
   if (raw == null || raw === '') return null
@@ -41,8 +37,75 @@ export function normalizeMexicoPhone(raw) {
   return null
 }
 
+/**
+ * ¿Hace falta plantilla Meta? (usuario nuevo o sin WA en >14 días)
+ *
+ * Criterios (cualquiera → template):
+ * - No hay last_tappt_wa_at en metadata y no hay citas previas
+ * - last_tappt_wa_at o última cita previa es más antigua que 14 días
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ * @param {string} currentAppointmentId — cita recién creada (excluida del historial)
+ * @param {string|null} lastTapptWaAt — user_metadata.last_tappt_wa_at
+ */
+export async function candidateNeedsWaTemplate(
+  supabase,
+  userId,
+  currentAppointmentId,
+  lastTapptWaAt = null
+) {
+  const idleMs = TAPPT_TEMPLATE_IDLE_DAYS * 24 * 60 * 60 * 1000
+  const now = Date.now()
+
+  if (lastTapptWaAt) {
+    const t = new Date(lastTapptWaAt).getTime()
+    if (!Number.isNaN(t)) {
+      return now - t >= idleMs
+    }
+  }
+
+  const { data: prev, error } = await supabase
+    .from('hrm_appointments')
+    .select('id, created_at')
+    .eq('user_id', userId)
+    .neq('id', currentAppointmentId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    console.warn('Tappt needsTemplate: error leyendo citas previas → usar template', error.message)
+    return true
+  }
+
+  // Sin citas previas = primer contacto
+  if (!prev?.length) return true
+
+  const lastAt = new Date(prev[0].created_at).getTime()
+  if (Number.isNaN(lastAt)) return true
+  return now - lastAt >= idleMs
+}
+
+/** Formatea fecha_cita ISO → { dateStr, timeStr } en CDMX (params de template). */
+export function formatAppointmentDisplay(isoStr) {
+  if (!isoStr) return { dateStr: 'Por confirmar', timeStr: '' }
+  const d = new Date(isoStr)
+  if (Number.isNaN(d.getTime())) return { dateStr: 'Por confirmar', timeStr: '' }
+  const dateStr = new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'America/Mexico_City',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(d)
+  const timeStr = new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'America/Mexico_City',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d)
+  return { dateStr, timeStr }
+}
+
 async function callTappt(path, payload) {
-  // Misma firma que el CRM: URL + path, Bearer, X-Source
   return axios.post(`${TAPPT_API_URL}${path}`, payload, {
     timeout: 10000,
     headers: {
@@ -54,15 +117,15 @@ async function callTappt(path, payload) {
 }
 
 /**
- * Equivalente a notifyFollowupCreated(followup, client) del CRM.
+ * Equivalente a notifyFollowupCreated(followup, client) del CRM + flag de template.
  *
- * @param {object} appointment — fila hrm_appointments (id, descripcion, fecha_cita)
- * @param {object} candidate — shape de "cliente" CRM:
- *   { id, razon_social, nombre_contacto, telefono }
- *
- * Fire-and-forget: nunca bloquea ni rompe la respuesta del HRM si Tappt falla.
+ * @param {object} appointment — { id, descripcion, fecha_cita }
+ * @param {object} candidate — { id, razon_social, nombre_contacto, telefono, last_tappt_wa_at? }
+ * @param {{ useTemplate?: boolean, supabase?: object }} [opts]
+ *   useTemplate: si no se pasa, se asume false (caller debe calcularlo).
+ *   supabase: si se pasa y opts.useTemplate no, se calcula needsTemplate.
  */
-export function notifyAppointmentCreated(appointment, candidate) {
+export function notifyAppointmentCreated(appointment, candidate, opts = {}) {
   if (!tapptEnabled()) {
     console.error(
       'Tappt notify error (appointment.created): TAPPT_API_URL / TAPPT_API_KEY no configurados'
@@ -70,7 +133,6 @@ export function notifyAppointmentCreated(appointment, candidate) {
     return
   }
 
-  // B2C: destino = teléfono del candidato (no TAPPT_NOTIFY_PHONE del dueño CRM)
   const notifyTo = normalizeMexicoPhone(candidate?.telefono)
   if (!notifyTo) {
     console.error(
@@ -80,9 +142,13 @@ export function notifyAppointmentCreated(appointment, candidate) {
     return
   }
 
-  // Payload idéntico en estructura al CRM (event, followup_id, descripcion,
-  // fecha_recordatorio, notify_to, cliente{...})
-  callTappt('/api/integrations/crm/followups', {
+  const useTemplate = Boolean(opts.useTemplate)
+  const { dateStr, timeStr } = formatAppointmentDisplay(appointment.fecha_cita)
+  const clientName = candidate?.nombre_contacto || 'Candidato'
+  const title = (appointment.descripcion || 'Cita con reclutador').slice(0, 60)
+
+  // Payload base CRM + extensiones HRM para template Meta
+  const payload = {
     event: 'followup.created',
     followup_id: appointment.id,
     descripcion: appointment.descripcion,
@@ -91,13 +157,56 @@ export function notifyAppointmentCreated(appointment, candidate) {
     cliente: {
       id: candidate?.id || null,
       razon_social: candidate?.razon_social || 'HRM NKUVO',
-      nombre_contacto: candidate?.nombre_contacto || null,
+      nombre_contacto: clientName,
       telefono: candidate?.telefono || null,
     },
+    // Extensiones (Tappt las usa si está actualizado; si no, ignora y manda texto)
+    use_template: useTemplate,
+    message_mode: useTemplate ? 'template' : 'text',
+    // Nombre lógico; Tappt mapea a TAPPT_TEMPLATE_PRO / appointment confirmation
+    template_name: useTemplate
+      ? (process.env.HRM_WA_TEMPLATE || 'appointment_confirmation')
+      : null,
+    template_params: useTemplate
+      ? {
+          client_name: clientName,
+          business_name: 'HRM NKUVO',
+          title,
+          date: dateStr,
+          time: timeStr || 'Por confirmar',
+        }
+      : null,
+  }
+
+  console.log('Tappt notify (appointment.created):', {
+    appointmentId: appointment.id,
+    notify_to: notifyTo,
+    use_template: useTemplate,
+    message_mode: payload.message_mode,
   })
-    .then(() =>
-      console.log('Tappt notify ok (appointment.created):', appointment.id, '→', notifyTo)
-    )
+
+  callTappt('/api/integrations/crm/followups', payload)
+    .then(async () => {
+      console.log(
+        'Tappt notify ok (appointment.created):',
+        appointment.id,
+        '→',
+        notifyTo,
+        useTemplate ? '[template]' : '[text]'
+      )
+      // Marca última interacción WA en metadata (ayuda a la regla de 14 días)
+      if (opts.supabase && candidate?.id) {
+        try {
+          await opts.supabase.auth.admin.updateUserById(candidate.id, {
+            user_metadata: {
+              last_tappt_wa_at: new Date().toISOString(),
+            },
+          })
+        } catch (e) {
+          console.warn('Tappt: no se pudo guardar last_tappt_wa_at', e.message)
+        }
+      }
+    })
     .catch(err =>
       console.error(
         'Tappt notify error (appointment.created):',
@@ -108,7 +217,6 @@ export function notifyAppointmentCreated(appointment, candidate) {
 
 /**
  * Equivalente a notifyFollowupCancelled del CRM.
- * Fire-and-forget.
  */
 export function notifyAppointmentCancelled(appointmentId) {
   if (!tapptEnabled()) return
