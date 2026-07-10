@@ -117,3 +117,10 @@ create policy "own_session" on hrm_sessions for all using (auth.uid() = user_id)
 
 alter table hrm_unlocked_recruiters enable row level security;
 create policy "own_unlocked" on hrm_unlocked_recruiters for all using (auth.uid() = user_id);
+
+-- Pack "CV IA + ATS Checker" ($149 MXN, pago único vía Clip, sin suscripción).
+-- No toca "status" (eso sigue siendo solo del plan mensual Pro).
+do $$ begin
+  begin alter table hrm_subscriptions add column cv_pack_purchased_at timestamptz; exception when duplicate_column then null; end;
+  begin alter table hrm_subscriptions add column cv_pack_order_id     text;        exception when duplicate_column then null; end;
+end $$;

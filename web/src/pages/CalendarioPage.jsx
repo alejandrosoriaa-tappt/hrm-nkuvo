@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Check, Pencil, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Check, Pencil, Trash2, MessageCircle } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
@@ -12,6 +12,14 @@ const EMPTY_FORM = {
   recruiter_id: '',
 }
 
+// Click to Chat: el candidato le escribe primero a Tappt para "activarse"
+// dentro de la ventana de 24h de WhatsApp — sin este primer mensaje, Meta
+// no permite que Tappt le mande recordatorios de forma proactiva.
+const TAPPT_WA_NUMBER = '5214429232611'
+const TAPPT_WA_OPTIN_MSG = 'Quiero recibir notificaciones de WhatsApp de mis citas y recordatorios'
+const TAPPT_WA_OPTIN_URL = `https://wa.me/${TAPPT_WA_NUMBER}?text=${encodeURIComponent(TAPPT_WA_OPTIN_MSG)}`
+const WA_OPTIN_DISMISSED_KEY = 'hrm_wa_optin_dismissed'
+
 export default function CalendarioPage() {
   const [appointments, setAppointments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,6 +31,14 @@ export default function CalendarioPage() {
   const [error, setError] = useState(null)
   const [tapptWarning, setTapptWarning] = useState(null)
   const [selectedDay, setSelectedDay] = useState(null)
+  const [waOptinDismissed, setWaOptinDismissed] = useState(
+    () => localStorage.getItem(WA_OPTIN_DISMISSED_KEY) === '1'
+  )
+
+  const dismissWaOptin = () => {
+    localStorage.setItem(WA_OPTIN_DISMISSED_KEY, '1')
+    setWaOptinDismissed(true)
+  }
 
   const load = () => {
     hrmAPI.listAppointments()
@@ -159,22 +175,56 @@ export default function CalendarioPage() {
         </button>
       </div>
 
+      {!waOptinDismissed && (
+        <div
+          className="alert alert-info"
+          style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}
+        >
+          <span style={{ fontSize: '0.8125rem', lineHeight: 1.5 }}>
+            <strong>Activa tus recordatorios por WhatsApp.</strong> Escríbele una vez a Tappt y
+            desde ahí te avisamos de tus citas y seguimientos.
+          </span>
+          <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+            <a
+              href={TAPPT_WA_OPTIN_URL}
+              target="_blank" rel="noreferrer"
+              className="btn btn-primary btn-sm"
+              onClick={dismissWaOptin}
+            >
+              <MessageCircle size={14} /> Activar por WhatsApp
+            </a>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={dismissWaOptin}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
       {tapptWarning && (
         <div
           className="alert alert-info"
-          style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}
+          style={{ marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'flex-start' }}
         >
-          <span style={{ fontSize: '0.8125rem', lineHeight: 1.5 }}>
-            <strong>Cita guardada.</strong> {tapptWarning}
-          </span>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setTapptWarning(null)}
-            style={{ flexShrink: 0 }}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start', width: '100%' }}>
+            <span style={{ fontSize: '0.8125rem', lineHeight: 1.5 }}>
+              <strong>Cita guardada.</strong> {tapptWarning}
+            </span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setTapptWarning(null)}
+              style={{ flexShrink: 0 }}
+            >
+              Cerrar
+            </button>
+          </div>
+          <a
+            href={TAPPT_WA_OPTIN_URL}
+            target="_blank" rel="noreferrer"
+            className="btn btn-primary btn-sm"
           >
-            Cerrar
-          </button>
+            <MessageCircle size={14} /> Activar recordatorios por WhatsApp
+          </a>
         </div>
       )}
 

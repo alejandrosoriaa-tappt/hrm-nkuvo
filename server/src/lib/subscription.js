@@ -32,6 +32,22 @@ export function getFreeContactLimit() {
 }
 
 /**
+ * Acceso al pack "CV IA + ATS Checker" ($149 MXN, pago único): Pro/demo lo
+ * incluyen; free lo obtiene comprando el pack (hrm_subscriptions.cv_pack_purchased_at).
+ * Gating de ATS-fix y reescritura con IA usa esto en vez de isProUser a secas.
+ */
+export async function hasCvPackAccess(supabase, userId, email) {
+  if (await isProUser(supabase, userId, email)) return true
+
+  const { data: sub } = await supabase
+    .from('hrm_subscriptions')
+    .select('cv_pack_purchased_at')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return Boolean(sub?.cv_pack_purchased_at)
+}
+
+/**
  * Cuenta filas en hrm_contacts para un usuario.
  * Falla de forma cerrada si Supabase no devuelve un número.
  */

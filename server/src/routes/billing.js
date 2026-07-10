@@ -33,6 +33,10 @@ const CLIP_SUBSCRIPTION_LINK =
   process.env.CLIP_SUBSCRIPTION_LINK ||
   'https://pago.clip.mx/v2/suscripcion/eaadea41-f533-4902-8fb3-a1836c57b83f'
 
+// Link de pago único de Clip para el pack "CV IA + ATS Checker" ($149 MXN).
+// Debe crearse aparte en el dashboard de Clip (checkout de pago único, no suscripción).
+const CLIP_CV_PACK_LINK = process.env.CLIP_CV_PACK_LINK
+
 // Secret para verificar que el postback viene de Clip.
 // Clip no firma webhooks con HMAC, así que usamos un token secreto en la URL
 // que solo nosotros conocemos: POST /api/hrm/billing/webhook?secret=<CLIP_WEBHOOK_SECRET>
@@ -43,12 +47,12 @@ router.get('/status', authMiddleware, async (req, res) => {
   // Cuentas demo (DEMO_EMAILS en Railway): Pro sin pasar por Clip.
   const isDemoPro = await isProUser(supabase, req.user.id, req.user.email)
   if (isDemoPro) {
-    return res.json({ status: 'active', plan: 'demo', isActive: true, isFree: false })
+    return res.json({ status: 'active', plan: 'demo', isActive: true, isFree: false, hasCvPack: true })
   }
 
   const { data, error } = await supabase
     .from('hrm_subscriptions')
-    .select('status, plan, current_period_end, clip_customer_email, cancel_requested_at')
+    .select('status, plan, current_period_end, clip_customer_email, cancel_requested_at, cv_pack_purchased_at')
     .eq('user_id', req.user.id)
     .maybeSingle()
   if (error) return res.status(500).json({ error: error.message })
@@ -63,6 +67,7 @@ router.get('/status', authMiddleware, async (req, res) => {
 
   res.json({
     ...sub,
+    hasCvPack: Boolean(sub.cv_pack_purchased_at) || (sub.status === 'active' && !isExpired),
     isActive: sub.status === 'active' && !isExpired,
     isFree:   sub.status === 'free' || isExpired,
   })
@@ -97,6 +102,36 @@ router.post('/checkout', authMiddleware, async (req, res) => {
     checkoutUrl: url.toString(),
     plan: 'suscripcion_mensual',
     amount: 299,
+    currency: 'MXN',
+  })
+})
+
+// ── POST /checkout-cv-pack ────────────────────────────────────────────────
+// Pago único ($149 MXN): ATS Checker + ayuda a construir tu CV con IA, sin
+// suscripción mensual. reference lleva un sufijo "::cv_pack" para que el
+// webhook lo distinga del checkout de suscripción y no toque "status".
+router.post('/checkout-cv-pack', authMiddleware, async (req, res) => {
+  if (!CLIP_CV_PACK_LINK) {
+    return res.status(503).json({ error: 'Pack CV IA no configurado todavía.' })
+  }
+
+  const { data: existing } = await supabase
+    .from('hrm_subscriptions')
+    .select('cv_pack_purchased_at')
+    .eq('user_id', req.user.id)
+    .maybeSingle()
+
+  if (existing?.cv_pack_purchased_at) {
+    return res.status(409).json({ error: 'Ya compraste el pack CV IA + ATS Checker.' })
+  }
+
+  const url = new URL(CLIP_CV_PACK_LINK)
+  url.searchParams.set('reference', `${req.user.id}::cv_pack`)
+
+  res.json({
+    checkoutUrl: url.toString(),
+    plan: 'cv_pack',
+    amount: 149,
     currency: 'MXN',
   })
 })
@@ -140,7 +175,41 @@ router.post('/webhook', async (req, res) => {
     return res.sendStatus(200)
   }
 
-  // 3. Determinar nuevo status
+  // 2b. Pack CV IA ($149, pago único): reference lleva el sufijo "::cv_pack"
+  // que pusimos en /checkout-cv-pack. No toca "status" del plan mensual.
+  if (reference.endsWith('::cv_pack')) {
+    const userId = reference.replace(/::cv_pack$/, '')
+    const upperStatus = (status || '').toUpperCase()
+    const paidStatuses = ['PAID', 'COMPLETED', 'APPROVED', 'ACTIVE']
+
+    if (!paidStatuses.includes(upperStatus)) {
+      console.log('Clip webhook (cv_pack): status no es de pago exitoso:', status)
+      return res.sendStatus(200)
+    }
+
+    try {
+      const { error } = await supabase
+        .from('hrm_subscriptions')
+        .upsert({
+          user_id: userId,
+          cv_pack_purchased_at: new Date().toISOString(),
+          cv_pack_order_id: paymentId,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' })
+
+      if (error) {
+        console.error('Clip webhook (cv_pack) DB error:', error)
+        return res.status(500).json({ error: 'DB error' })
+      }
+      console.log(`Clip webhook procesado (cv_pack): user=${userId}`)
+      return res.sendStatus(200)
+    } catch (err) {
+      console.error('Clip webhook (cv_pack) error:', err)
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  }
+
+  // 3. Determinar nuevo status (plan mensual)
   const statusMap = {
     'PAID':       'active',
     'COMPLETED':  'active',

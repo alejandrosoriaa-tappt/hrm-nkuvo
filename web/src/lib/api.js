@@ -87,6 +87,7 @@ export const hrmAPI = {
   // Billing Clip
   getBillingStatus:      ()          => api.get('/api/hrm/billing/status'),
   startCheckout:         ()          => api.post('/api/hrm/billing/checkout'),
+  startCvPackCheckout:   ()          => api.post('/api/hrm/billing/checkout-cv-pack'),
   cancelSubscription:    ()          => api.post('/api/hrm/billing/cancel'),
 }
 

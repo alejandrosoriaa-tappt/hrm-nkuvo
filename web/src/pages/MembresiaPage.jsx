@@ -8,6 +8,7 @@ export default function MembresiaPage() {
   const [billing, setBilling] = useState(null)
   const [billingLoading, setBillingLoading] = useState(true)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [cvPackLoading, setCvPackLoading] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [cancelDone, setCancelDone] = useState(null)
   const [billingError, setBillingError] = useState(null)
@@ -28,6 +29,18 @@ export default function MembresiaPage() {
     } catch (err) {
       setBillingError(err.response?.data?.error || err.message)
       setCheckoutLoading(false)
+    }
+  }
+
+  const handleBuyCvPack = async () => {
+    setCvPackLoading(true)
+    setBillingError(null)
+    try {
+      const r = await hrmAPI.startCvPackCheckout()
+      window.location.href = r.data.checkoutUrl
+    } catch (err) {
+      setBillingError(err.response?.data?.error || err.message)
+      setCvPackLoading(false)
     }
   }
 
@@ -68,7 +81,14 @@ export default function MembresiaPage() {
           ) : billing?.status === 'past_due' ? (
             <PastDuePlan billing={billing} checkoutLoading={checkoutLoading} onSubscribe={handleSubscribe} billingError={billingError} />
           ) : (
-            <FreePlan checkoutLoading={checkoutLoading} onSubscribe={handleSubscribe} billingError={billingError} />
+            <FreePlan
+              checkoutLoading={checkoutLoading}
+              onSubscribe={handleSubscribe}
+              billingError={billingError}
+              hasCvPack={billing?.hasCvPack}
+              cvPackLoading={cvPackLoading}
+              onBuyCvPack={handleBuyCvPack}
+            />
           )}
         </div>
       </div>
@@ -76,7 +96,7 @@ export default function MembresiaPage() {
   )
 }
 
-function FreePlan({ checkoutLoading, onSubscribe, billingError }) {
+function FreePlan({ checkoutLoading, onSubscribe, billingError, hasCvPack, cvPackLoading, onBuyCvPack }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -84,6 +104,39 @@ function FreePlan({ checkoutLoading, onSubscribe, billingError }) {
         <span style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
           Contacto desbloqueado para los primeros 5 reclutadores
         </span>
+      </div>
+
+      <div style={{ background: 'var(--md-surface-container-low)', borderRadius: 12, padding: '1rem' }}>
+        <p style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--md-on-surface)', marginBottom: '0.5rem' }}>
+          CV IA + ATS Checker — $149 MXN<span style={{ fontSize: '0.875rem', fontWeight: 400 }}> pago único</span>
+        </p>
+        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.375rem', marginBottom: '1rem' }}>
+          {[
+            'Cómo arreglar cada problema que detecta el ATS Checker',
+            'Sugerencias de reescritura de tu CV con IA',
+            'Pago único — no es mensualidad, no vence',
+          ].map(f => (
+            <li key={f} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
+              <CheckCircle2 size={14} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
+              {f}
+            </li>
+          ))}
+        </ul>
+
+        {hasCvPack ? (
+          <span className="chip chip-success">
+            <CheckCircle2 size={12} /> Ya lo tienes
+          </span>
+        ) : (
+          <button
+            className="btn btn-outline w-full"
+            onClick={onBuyCvPack}
+            disabled={cvPackLoading}
+          >
+            {cvPackLoading ? <span className="spinner spinner-sm" /> : <CreditCard size={16} />}
+            {cvPackLoading ? 'Redirigiendo a Clip…' : 'Comprar por $149 (pago único)'}
+          </button>
+        )}
       </div>
 
       <div style={{ background: 'var(--md-surface-container-low)', borderRadius: 12, padding: '1rem' }}>

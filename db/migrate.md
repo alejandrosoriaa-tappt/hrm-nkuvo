@@ -82,6 +82,9 @@ TAPPT_API_KEY=
 # Clip (billing)
 # Link de suscripción generado desde el dashboard de Clip
 CLIP_SUBSCRIPTION_LINK=https://pago.clip.mx/v2/suscripcion/eaadea41-f533-4902-8fb3-a1836c57b83f
+# Link de PAGO ÚNICO (no suscripción) para el pack "CV IA + ATS Checker" $149 MXN.
+# Crear aparte en el dashboard de Clip como checkout de un solo cobro.
+CLIP_CV_PACK_LINK=https://pago.clip.mx/v2/pago/<crear-en-clip>
 # Secret para proteger el endpoint de webhook (pon cualquier string largo y aleatorio)
 CLIP_WEBHOOK_SECRET=cambia_esto_por_un_secret_aleatorio
 

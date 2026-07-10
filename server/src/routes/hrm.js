@@ -7,6 +7,7 @@ import { authMiddleware } from '../middleware/auth.js'
 import { sessionMiddleware } from '../middleware/session.js'
 import {
   isProUser,
+  hasCvPackAccess,
   checkContactLimit,
   getFreeContactLimit,
   countUserUnlocks,
@@ -499,11 +500,12 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
   }
 
   const { checks, score, passedCount } = analyzeAtsFormat(cvText)
-  const isPro = await isProUser(supabase, userId, req.user.email)
+  // Pro o pack CV IA ($149 pago único) ven el "cómo arreglarlo" de cada check.
+  const hasFixAccess = await hasCvPackAccess(supabase, userId, req.user.email)
 
   const results = checks.map(({ fix, ...rest }) => ({
     ...rest,
-    fix: isPro ? fix : (rest.passed ? null : undefined), // undefined = "bloqueado, suscríbete"
+    fix: hasFixAccess ? fix : (rest.passed ? null : undefined), // undefined = "bloqueado, suscríbete"
   }))
 
   await supabase
@@ -523,7 +525,7 @@ router.post('/cvs/:id/ats-check', async (req, res) => {
     totalChecks: checks.length,
     passedChecks: passedCount,
     results,
-    isPro,
+    isPro: hasFixAccess,
   })
 })
 
@@ -557,10 +559,11 @@ function buildHeuristicAtsSuggestions(analysis) {
 router.post('/cvs/:id/rewrite', async (req, res) => {
   const userId = req.user.id
 
-  const isPro = await isProUser(supabase, userId, req.user.email)
-  if (!isPro) {
+  // Pro o pack CV IA + ATS Checker ($149 pago único) tienen acceso.
+  const hasAccess = await hasCvPackAccess(supabase, userId, req.user.email)
+  if (!hasAccess) {
     return res.status(403).json({
-      error: 'Sugerencias con IA disponibles en el plan Pro.',
+      error: 'Sugerencias con IA disponibles en Pro o en el pack CV IA + ATS Checker ($149).',
       locked: true,
     })
   }
