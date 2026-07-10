@@ -18,6 +18,8 @@ export default function CvsPage() {
   const [rewriteLoading, setRewriteLoading] = useState(false)
   const [rewriteResult, setRewriteResult] = useState(null)
   const [rewriteContexto, setRewriteContexto] = useState('')
+  const [billing, setBilling] = useState(null)
+  const [cvPackLoading, setCvPackLoading] = useState(false)
   const fileRef = useRef(null)
 
   const load = () => {
@@ -28,6 +30,20 @@ export default function CvsPage() {
   }
 
   useEffect(load, [])
+  useEffect(() => {
+    hrmAPI.getBillingStatus().then(r => setBilling(r.data)).catch(() => {})
+  }, [])
+
+  const handleBuyCvPack = async () => {
+    setCvPackLoading(true)
+    try {
+      const r = await hrmAPI.startCvPackCheckout()
+      window.location.href = r.data.checkoutUrl
+    } catch (err) {
+      alert(err.response?.data?.error || err.message)
+      setCvPackLoading(false)
+    }
+  }
 
   const handleUpload = async (e) => {
     e.preventDefault()
@@ -144,6 +160,17 @@ export default function CvsPage() {
             “Sugerir con IA” (pasos concretos para llegar al 100% de compliance ATS) trabajan
             juntos en esta página.
           </p>
+          {billing && !billing.hasCvPack && (
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ marginTop: '0.75rem' }}
+              onClick={handleBuyCvPack}
+              disabled={cvPackLoading}
+            >
+              {cvPackLoading ? <span className="spinner spinner-sm" /> : <Wand2 size={14} />}
+              {cvPackLoading ? 'Redirigiendo…' : 'Desbloquear todo por $149 (pago único)'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -339,10 +366,10 @@ export default function CvsPage() {
                 {!atsResult.isPro && atsResult.results?.some(r => !r.passed) && (
                   <div className="alert alert-info" style={{ flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
                     <p style={{ fontSize: '0.8125rem' }}>
-                      Suscríbete a Pro para ver exactamente cómo corregir cada problema detectado.
+                      Desbloquea el "cómo arreglarlo" de cada problema con el pack <strong>CV IA + ATS Checker ($149 pago único)</strong> o con Pro ($299/mes).
                     </p>
                     <Link to="/app/membresia" className="btn btn-primary btn-sm">
-                      <CreditCard size={13} /> Suscribirme
+                      <CreditCard size={13} /> Ver planes
                     </Link>
                   </div>
                 )}
@@ -405,10 +432,10 @@ export default function CvsPage() {
                 <div className="alert alert-info" style={{ flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem' }}>
                     <Lock size={14} style={{ flexShrink: 0 }} />
-                    Sugerencias con IA disponibles con plan Pro.
+                    Sugerencias con IA disponibles con el pack CV IA + ATS Checker ($149 pago único) o con Pro ($299/mes).
                   </div>
                   <Link to="/app/membresia" className="btn btn-primary btn-sm">
-                    <CreditCard size={13} /> Suscribirme
+                    <CreditCard size={13} /> Ver planes
                   </Link>
                 </div>
               )}
