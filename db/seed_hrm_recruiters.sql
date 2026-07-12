@@ -1,5 +1,16 @@
 -- HRM NKUVO — seed de reclutadoras (regenerado 8 jul 2026 desde directorio_reclutadoras_hrm.xlsx)
 -- 84 registros únicos (117 filas originales - 2 institucionales - 31 duplicados entre hojas)
+--
+-- 12 jul 2026: + padrón oficial STPS (Directorio_Agencias_CON_SitioWeb.xlsx, 79 filas).
+-- Depurado a 63 registros nuevos tras cruzar contra los 84 de arriba:
+--   - 4 eliminadas por duplicar número de registro STPS dentro del propio archivo
+--     (mismo folio con "Tipo de Registro" distinto: Nacional / Empleo en el exterior).
+--   - 8 eliminadas por compartir dominio de sitio web con otra fila del mismo archivo
+--     (múltiples razones sociales de una misma marca: Prowork x4, Leader People x3, Soraa x2).
+--   - 3 eliminadas por ya existir en el directorio de arriba con la misma marca
+--     (Adecco, Manpower, Soraa por dominio exacto; Randstad, Serpac, People Care por marca).
+-- Total: 84 + 63 = 147 reclutadoras. "Lucrativa: No" (universidades, cámaras empresariales)
+-- se incluyó igual, sin excluir, a pedido explícito del usuario.
 
 alter table hrm_recruiters add column if not exists estado text default 'activo';
 
@@ -89,3 +100,68 @@ values
   ('Top Hire', 'Executive search para multinacionales y Fortune 500', 'https://top-hire.com/', null, null, 'México (sin confirmar)', 'curado', 'verificar'),
   ('People Connect / People Connection', 'RH integral: reclutamiento, nómina, psicometrías', 'https://peopleconnect.com.mx/', 'recursoshumanos@peopleconnect.com.mx', '(55) 6820 3100 CDMX / (222) 934 5100 Puebla', 'CDMX / Puebla / Toluca', 'curado', 'verificar'),
   ('ALGI Consultores', 'Reclutamiento consultivo, psicometrías, capacitación, RH integral', 'https://algi.mx/', 'hola@algi.mx', '+52 55 7100 0200 / 55 6297 1084', 'CDMX / Puebla / Querétaro / Tlaxcala / Morelos', 'curado', 'activo');
+insert into hrm_recruiters (nombre, industria, sitio_web, email, telefono, ciudad, fuente, estado)
+values
+  ('Universidad Autónoma de Aguascalientes', 'Institución / cámara empresarial — bolsa de empleo registrada ante STPS', 'https://www.uaa.mx', null, '449 918 0431', 'Aguascalientes, Ags.', 'curado', 'activo'),
+  ('Universidad Tecnológica de Aguascalientes', 'Institución / cámara empresarial — bolsa de empleo registrada ante STPS', 'https://www.utags.edu.mx', null, '449 910 5000 EXT. 124', 'Aguascalientes, Ags.', 'curado', 'activo'),
+  ('Tu Empleo Ideal S. C.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.facebook.com/tuempleoidealmx/', null, '68 6304 7105; 68 6945 2653', 'Mexicali, B. C.', 'curado', 'activo'),
+  ('Centro Empresarial Coahuila Sureste S. P.', 'Institución / cámara empresarial — bolsa de empleo registrada ante STPS', 'https://coparmexcoahuila.org.mx', null, '844 415 8941; 844 415 3412; 844 415 8618; 844 416 2307; 844 416 2310', 'Coahuila', 'curado', 'activo'),
+  ('Human Staff S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.humanstaff.com', null, '871 747 03 00', 'Torreón, Coah.', 'curado', 'activo'),
+  ('Zesati Internacional S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://zesatiinternacional.com', null, '871 688 1272', 'Torreón, Coah.', 'curado', 'activo'),
+  ('Best Staff Services S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://beststaff.mx', null, '87 1776 3318', 'Torreón, Coah.', 'curado', 'activo'),
+  ('Bussines Management Service S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://bmghumancapital.mx', null, '87 1187 5502', 'Torreón, Coah.', 'curado', 'verificar'),
+  ('Ech Servicios Integrales S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://ech.com.mx', null, '87 1724 0620', 'Torreón, Coah.', 'curado', 'activo'),
+  ('Fabiola Berenice Constantino Solís (Buró Laboral)', 'Agencia de colocación privada — registrada ante STPS', 'http://www.burolaboral.mx', null, '961 613 6987; 961 614 7851', 'Tuxtla Gutierrez, Chis.', 'curado', 'activo'),
+  ('Regina Vega Macías (Vega Consulting)', 'Agencia de colocación privada — registrada ante STPS', 'https://www.vegaconsulting.com.mx', null, '961 336 1626', 'Tuxtla Gutierrez, Chis.', 'curado', 'activo'),
+  ('Triunfo Activo S. A. de C. V. (Chc Empresarial)', 'Agencia de colocación privada — registrada ante STPS', 'https://chcempresarial.com', null, '96 1207 3059', 'Tuxtla Gutierrez, Chis.', 'curado', 'activo'),
+  ('Centro Empresarial de Chihuahua S. P.', 'Institución / cámara empresarial — bolsa de empleo registrada ante STPS', 'https://www.coparmexchihuahua.org', null, '614 416 5228 EXT. 3', 'Chihuahua, Chih.', 'curado', 'activo'),
+  ('Human Select, S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.humanselect.com.mx', null, '55 5264 8319; 55 3547 9075', 'Ciudad de México, CDMX', 'curado', 'activo'),
+  ('Cierto México S. C.', 'Institución / cámara empresarial — bolsa de empleo registrada ante STPS', 'https://ciertoglobal.org', null, '55 4774 4880', 'Alcaldía Benito Juárez, Ciudad de México', 'curado', 'activo'),
+  ('ILUM Asesores S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.ilumasesores.com', null, '55 28 50 71 10', 'Ciudad de México, CDMX', 'curado', 'activo'),
+  ('Staffing Personal S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.staffingpersonal.com', null, '55 5687 3617', 'Alcaldía Benito Juárez, Ciudad de México', 'curado', 'activo'),
+  ('3R Respuesta Rápida en Reclutamiento S. A. P. I. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://reclutamiento3r.com', null, '55 2772 5211', 'Ciudad de México, CDMX', 'curado', 'activo'),
+  ('Asociación Mexicana de Empresas de Capacitación y Administración de Recursos Humanos A. C.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.amech.mx', null, '55 9039 7317', 'Ciudad de México, CDMX', 'curado', 'activo'),
+  ('Organizacion y Estrategia Humana S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://estrategiahumana.com', null, '55 5207 4223', 'Ciudad de México, CDMX', 'curado', 'activo'),
+  ('Vanzar Link S. A de C. V. (Working Link)', 'Agencia de colocación privada — registrada ante STPS', 'https://workinglink.mx', null, '55 6719 1119', 'Ciudad de México, CDMX', 'curado', 'activo'),
+  ('Fundación Pradillo A. C.', 'Institución / cámara empresarial — bolsa de empleo registrada ante STPS', 'https://fundacionpradillo.org', null, '55 9039 7317 Ext. 1001', 'Ciudad de México, CDMX', 'curado', 'activo'),
+  ('Human Capital Assets Corporate S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'http://hcapitalassets.com', null, '55 5922 7929', 'Alcaldía Cuauhtémoc, Ciudad de México', 'curado', 'activo'),
+  ('Prowork Energy S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.prowork.mx', null, '22 2708 0136', 'Ciudad de México, CDMX', 'curado', 'activo'),
+  ('Bacher Zoppi, S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.bacherzoppi.com.mx', null, '55 9421 8040', 'Ciudad de México', 'curado', 'activo'),
+  ('Global Workers Management S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.globalworkers.com.mx', null, '77 1143 0045', 'Tepehuacán de Guerrero, Hidalgo', 'curado', 'activo'),
+  ('Grupo Empresarial Cosea S. C.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.cosea.mx', null, '33 3133 5346', 'Zapopan, Jal.', 'curado', 'activo'),
+  ('Creserh Consultoría Corporativa S. A. S. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.creserhcop.com', null, '33 1351 3198', 'Guadalajara, Jal.', 'curado', 'activo'),
+  ('Human Services & Logistics Solutions S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://humanservices21.com', null, '33 3880 8900', 'Zapopan, Jal.', 'curado', 'activo'),
+  ('Diaz Morones y Asociados, S. C.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.diazmorones.com.mx', null, '33 3630 3330', 'Guadalajara, Jal.', 'curado', 'activo'),
+  ('Conexión Laboral de Occidente S. C.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.conexionlaboral.com.mx', null, '33 4170 8190', 'Guadalajara, Jalisco', 'curado', 'activo'),
+  ('Azanza Soluciones Integrales S. C.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.grupoazanza.com', null, '33 3342 4040', 'Guadalajara, Jal.', 'curado', 'activo'),
+  ('Servicios Connexus Mexico, S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'http://www.connexus.com.mx', null, '33 3070 0299', 'Guadalajara, Jal.', 'curado', 'activo'),
+  ('Aurus Nivel Total S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://aurus.mx', null, '55 9056 4529', 'Naucálpan de Juárez, Estado de México', 'curado', 'activo'),
+  ('Universidad de Monterrey (Centro de Desarrollo Profesional y Vinculación Laboral)', 'Institución / cámara empresarial — bolsa de empleo registrada ante STPS', 'https://www.udem.edu.mx', null, '81 8215 1000 EXT. 1190, 1191, 1525', 'Nuevo León', 'curado', 'activo'),
+  ('Servicios Especializados en Recursos Humanos S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.seerh.com', null, '81 8123 4392/93/94', 'Nuevo León', 'curado', 'verificar'),
+  ('HR Element S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'http://www.hrelement.mx', null, '81 4737 3939', 'Monterrey, N. L.', 'curado', 'activo'),
+  ('Pro Multis S. C.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.promultisrh.com', null, '81 1297 9276', 'Apodaca, N. L.', 'curado', 'activo'),
+  ('Tao RH S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://taorh.com.mx', null, '81 2039 4723', 'San Pedro Garza García, N. L.', 'curado', 'activo'),
+  ('Compensación Aplicada S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.humanquality.com.mx', null, '81 8122 0000', 'Monterrey, Nuevo León', 'curado', 'activo'),
+  ('Human Force RH S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.facebook.com/HUMANFO/', null, '81 8000 5734', 'San Pedro Garza García, N. L.', 'curado', 'activo'),
+  ('Human Resource In Action, S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'http://www.humanresource.mx', null, '81 8020 8525', 'Monterrey, N. L.', 'curado', 'activo'),
+  ('Operación y Distribución Monts S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://monts.mx', null, '22 2230 5501', 'San Andrés Cholula, Pue', 'curado', 'activo'),
+  ('Procesos Betmun S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://procesosbetmun.com.mx', null, '22 2248 1870', 'Puebla, Pue.', 'curado', 'activo'),
+  ('Cámara de la Industria Textil de Puebla y Tlaxcala S. A. de C. V.', 'Institución / cámara empresarial — bolsa de empleo registrada ante STPS', 'https://citexmexico.com', null, '222 243 4200 EXT. 105', 'Puebla, Pue', 'curado', 'activo'),
+  ('Sips Especialistas en Recursos Humanos S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://sips.mx', null, '22 22 96 65 85; 222 644 22 84; CEL. 222 716 34 03', 'Puebla, Pue.', 'curado', 'activo'),
+  ('Cdcmx-Centro de Capacitación Alemán S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://cdc-mexico.com', null, '22 2445 8426', 'Puebla, Pue.', 'curado', 'activo'),
+  ('Universidad Politécnica de Querétaro', 'Institución / cámara empresarial — bolsa de empleo registrada ante STPS', 'https://upq.mx', null, '44 2101 9000', 'Querétaro', 'curado', 'activo'),
+  ('Medina Consultores S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://medinaconsultores.mx', null, '44 2903 4157', 'Querétaro', 'curado', 'activo'),
+  ('Agnes Soluciones Administrativas S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.reclutarh.com', null, '44 2244 9300', 'Querétaro, Qro.', 'curado', 'activo'),
+  ('Saram HR S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://saram-hr.com', null, '84 4140 9550', 'Querétaro, Qro.', 'curado', 'activo'),
+  ('Hca Desarrolladora de Talento Humano S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://hca-intelectualpeople.com', null, '44 2226 7340', 'Querétaro, Qro.', 'curado', 'activo'),
+  ('Solución Integral de Administración de Personal S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://siap.com.mx', null, '42 7150 7369', 'Querétaro, Qro.', 'curado', 'activo'),
+  ('Asesoría y Procesos Globales, S.A. de C.V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.facebook.com/APG.SA.DE.CV/', null, '44 4822 6361 EXT. 101', 'San Luis Potosí', 'curado', 'activo'),
+  ('Cambio Organizacional, S. C.', 'Agencia de colocación privada — registrada ante STPS', 'https://cambioorganizacional.com.mx', null, '44 4174 6988', 'San Luis Potosí, S. L. P.', 'curado', 'activo'),
+  ('Grupo Tonsuca S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://www.grupotonsuca.com', null, '44 4812 3405', 'San Luis Potosí, S. L. P.', 'curado', 'activo'),
+  ('Shore HR Solutions Shrs S.C', 'Agencia de colocación privada — registrada ante STPS', 'https://www.shorehrs.com', null, '66 2210 6391', 'Hermosillo, Son.', 'curado', 'activo'),
+  ('Gt RH en Soluciones Integrales S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://gtservice.mx', null, '68 6568 0507', 'Sonora', 'curado', 'verificar'),
+  ('Branjo Soluciones Industriales S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://bsindustrial.com.mx', null, '89 9444 2089; 89 9444 2090', 'Reynosa, Tamaulipas', 'curado', 'verificar'),
+  ('Mida Multiservicios Industriales S. de R. L. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://midamultiservicios.com', null, '89 9959 0056', 'Reynosa, Tams.', 'curado', 'verificar'),
+  ('Leader People Servicios Administrativos S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'http://www.lpcorp.com.mx', null, '78 2826 8567', 'Poza Rica de Hidalgo, Ver.', 'curado', 'verificar'),
+  ('Basset Soluciones S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://basset.com.mx', null, '99 9921 3415', 'Mérida, Yuc.', 'curado', 'activo'),
+  ('Integración Corporativa del Mayab S. A. de C. V.', 'Agencia de colocación privada — registrada ante STPS', 'https://corporativomayab.com.mx', null, '99 9469 1910', 'Mérida, Yuc.', 'curado', 'activo');
