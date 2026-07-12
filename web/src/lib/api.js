@@ -95,6 +95,7 @@ export const hrmAPI = {
 export const directoryAPI = {
   checkout: (email)     => api.post('/api/hrm/directory/checkout', { email }),
   status:   (orderRef)  => api.get(`/api/hrm/directory/status/${orderRef}`),
+  lookup:   (email)     => api.get('/api/hrm/directory/lookup', { params: { email } }),
   downloadUrl: (token)  => `${env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || ''}/api/hrm/directory/download/${token}`,
 }
 

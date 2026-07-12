@@ -32,6 +32,7 @@ const CLIP_DIRECTORY_LINK = process.env.CLIP_DIRECTORY_LINK
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const checkoutLimiter = rateLimit({ windowMs: 60_000, max: 10 })
+const lookupLimiter = rateLimit({ windowMs: 60_000, max: 8 })
 
 // ── POST /checkout ────────────────────────────────────────────────────────
 router.post('/checkout', checkoutLimiter, async (req, res) => {
@@ -78,6 +79,38 @@ router.get('/status/:orderRef', async (req, res) => {
   res.json({
     status: data.status,
     downloadToken: data.status === 'paid' && !data.downloaded_at ? data.download_token : null,
+    alreadyDownloaded: Boolean(data.downloaded_at),
+  })
+})
+
+// ── GET /lookup ───────────────────────────────────────────────────────────
+// Respaldo para cuando Clip no regresa al usuario a /directorio/gracias
+// (sus links de pago hospedados no soportan redirect configurable). El
+// comprador vuelve manualmente y recupera su descarga con el correo que usó.
+router.get('/lookup', lookupLimiter, async (req, res) => {
+  const email = (req.query.email || '').trim().toLowerCase()
+  if (!EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'Correo inválido.' })
+  }
+
+  const { data, error } = await supabase
+    .from('hrm_directory_purchases')
+    .select('download_token, downloaded_at')
+    .eq('email', email)
+    .eq('status', 'paid')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return res.status(500).json({ error: error.message })
+  if (!data) {
+    return res.status(404).json({
+      error: 'No encontramos un pago confirmado con ese correo. Si acabas de pagar, espera unos segundos e intenta de nuevo.',
+    })
+  }
+
+  res.json({
+    downloadToken: data.downloaded_at ? null : data.download_token,
     alreadyDownloaded: Boolean(data.downloaded_at),
   })
 })

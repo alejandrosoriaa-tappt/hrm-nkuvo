@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock, FileSpreadsheet } from 'lucide-react'
+import { CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock, FileSpreadsheet, Download, Search } from 'lucide-react'
 import { directoryAPI } from '../lib/api.js'
 import { ORDER_REF_KEY } from './directoryOrderRef.js'
 
@@ -39,8 +39,8 @@ const FAQS = [
     a: 'No — es una fotografía del directorio al momento de tu compra. Si prefieres la versión siempre actualizada más contacto ilimitado en la app, existe el plan Pro por $299/mes.',
   },
   {
-    q: 'Ya pagué pero no me llegó la descarga, ¿qué hago?',
-    a: 'Escríbenos por WhatsApp con tu correo de compra y te lo resolvemos directamente.',
+    q: 'Pagué pero Clip no me regresó a la descarga, ¿qué hago?',
+    a: 'Usa el buscador "¿Ya pagaste?" más abajo con el correo que usaste al comprar — ahí recuperas tu descarga directamente, sin esperar a nadie.',
   },
 ]
 
@@ -48,6 +48,11 @@ export default function DirectorioLandingPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  const [lookupEmail, setLookupEmail] = useState('')
+  const [lookupLoading, setLookupLoading] = useState(false)
+  const [lookupError, setLookupError] = useState(null)
+  const [lookupResult, setLookupResult] = useState(null) // { downloadToken, alreadyDownloaded }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -60,6 +65,21 @@ export default function DirectorioLandingPage() {
     } catch (err) {
       setError(err.response?.data?.error || err.message)
       setLoading(false)
+    }
+  }
+
+  const handleLookup = async (e) => {
+    e.preventDefault()
+    setLookupLoading(true)
+    setLookupError(null)
+    setLookupResult(null)
+    try {
+      const r = await directoryAPI.lookup(lookupEmail.trim().toLowerCase())
+      setLookupResult(r.data)
+    } catch (err) {
+      setLookupError(err.response?.data?.error || err.message)
+    } finally {
+      setLookupLoading(false)
     }
   }
 
@@ -224,6 +244,58 @@ export default function DirectorioLandingPage() {
               El Excel que descargas incluye también correo, teléfono y ciudad de cada reclutadora.
             </p>
           </div>
+        </div>
+
+        {/* ── Recuperar compra (Clip no siempre regresa al sitio tras pagar) ── */}
+        <div className="card" style={{ marginTop: '2.5rem', maxWidth: 480, marginInline: 'auto' }}>
+          <p style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--md-on-surface)', marginBottom: '0.25rem' }}>
+            ¿Ya pagaste?
+          </p>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.875rem' }}>
+            Si Clip no te regresó a la descarga, busca tu compra con el correo que usaste al pagar.
+          </p>
+
+          <form onSubmit={handleLookup} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <input
+              type="email"
+              className="input"
+              placeholder="tu@email.com"
+              value={lookupEmail}
+              onChange={(e) => setLookupEmail(e.target.value)}
+              required
+              style={{ flex: '1 1 200px' }}
+            />
+            <button type="submit" className="btn btn-outline" disabled={lookupLoading}>
+              {lookupLoading ? <span className="spinner spinner-sm" /> : <Search size={15} />}
+              Buscar
+            </button>
+          </form>
+
+          {lookupError && (
+            <div className="alert alert-error" style={{ marginTop: '0.875rem' }}>
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span>{lookupError}</span>
+            </div>
+          )}
+
+          {lookupResult?.downloadToken && (
+            <a
+              href={directoryAPI.downloadUrl(lookupResult.downloadToken)}
+              className="btn btn-primary w-full"
+              style={{ marginTop: '0.875rem' }}
+            >
+              <Download size={16} /> Descargar directorio (Excel)
+            </a>
+          )}
+
+          {lookupResult?.alreadyDownloaded && (
+            <div className="alert alert-info" style={{ marginTop: '0.875rem' }}>
+              Esta compra ya se descargó. Cada compra incluye una sola descarga — si necesitas ayuda,{' '}
+              <a href="https://wa.me/5215658732336" target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>
+                escríbenos por WhatsApp
+              </a>.
+            </div>
+          )}
         </div>
 
         {/* ── FAQ ── */}
