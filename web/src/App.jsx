@@ -14,6 +14,8 @@ import EtiquetasPage from './pages/EtiquetasPage.jsx'
 import ReportesPage from './pages/ReportesPage.jsx'
 import ConfiguracionPage from './pages/ConfiguracionPage.jsx'
 import MembresiaPage from './pages/MembresiaPage.jsx'
+import DirectorioLandingPage from './pages/DirectorioLandingPage.jsx'
+import DirectorioGraciasPage from './pages/DirectorioGraciasPage.jsx'
 
 export default function App() {
   return (
@@ -22,6 +24,10 @@ export default function App() {
         {/* Públicas */}
         <Route path="/login"  element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+
+        {/* Landing de venta del directorio ($99, sin cuenta) — tráfico de anuncios */}
+        <Route path="/directorio" element={<DirectorioLandingPage />} />
+        <Route path="/directorio/gracias" element={<DirectorioGraciasPage />} />
 
         {/* Protegidas — Layout hace el guard de sesión */}
         <Route path="/app" element={<Layout />}>

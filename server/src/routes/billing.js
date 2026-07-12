@@ -17,6 +17,7 @@
  */
 
 import { Router } from 'express'
+import crypto from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { authMiddleware } from '../middleware/auth.js'
 import { isProUser } from '../lib/subscription.js'
@@ -205,6 +206,42 @@ router.post('/webhook', async (req, res) => {
       return res.sendStatus(200)
     } catch (err) {
       console.error('Clip webhook (cv_pack) error:', err)
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  }
+
+  // 2c. Directorio suelto ($99, pago único, comprador sin cuenta): reference
+  // lleva el sufijo "::directory" que pusimos en POST /api/hrm/directory/checkout.
+  if (reference.endsWith('::directory')) {
+    const orderRef = reference.replace(/::directory$/, '')
+    const upperStatus = (status || '').toUpperCase()
+    const paidStatuses = ['PAID', 'COMPLETED', 'APPROVED', 'ACTIVE']
+
+    if (!paidStatuses.includes(upperStatus)) {
+      console.log('Clip webhook (directory): status no es de pago exitoso:', status)
+      return res.sendStatus(200)
+    }
+
+    try {
+      const updateData = {
+        status: 'paid',
+        clip_order_id: paymentId,
+        download_token: crypto.randomUUID(),
+      }
+      const { error } = await supabase
+        .from('hrm_directory_purchases')
+        .update(updateData)
+        .eq('order_ref', orderRef)
+        .eq('status', 'pending') // idempotente: no regenerar token si Clip reintenta el webhook
+
+      if (error) {
+        console.error('Clip webhook (directory) DB error:', error)
+        return res.status(500).json({ error: 'DB error' })
+      }
+      console.log(`Clip webhook procesado (directory): order_ref=${orderRef}`)
+      return res.sendStatus(200)
+    } catch (err) {
+      console.error('Clip webhook (directory) error:', err)
       return res.status(500).json({ error: 'Internal error' })
     }
   }

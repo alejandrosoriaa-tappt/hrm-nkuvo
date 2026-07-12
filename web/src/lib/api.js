@@ -91,4 +91,11 @@ export const hrmAPI = {
   cancelSubscription:    ()          => api.post('/api/hrm/billing/cancel'),
 }
 
+// ── Venta suelta del directorio ($99, landing pública sin cuenta) ──────────
+export const directoryAPI = {
+  checkout: (email)     => api.post('/api/hrm/directory/checkout', { email }),
+  status:   (orderRef)  => api.get(`/api/hrm/directory/status/${orderRef}`),
+  downloadUrl: (token)  => `${env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || ''}/api/hrm/directory/download/${token}`,
+}
+
 export default api

@@ -124,3 +124,22 @@ do $$ begin
   begin alter table hrm_subscriptions add column cv_pack_purchased_at timestamptz; exception when duplicate_column then null; end;
   begin alter table hrm_subscriptions add column cv_pack_order_id     text;        exception when duplicate_column then null; end;
 end $$;
+
+-- ── Venta suelta del directorio ($99 MXN, pago único, SIN cuenta) ──────────
+-- Landing pública /directorio: solo correo + pago con Clip, sin login. El
+-- comprador nunca se vuelve un usuario de auth.users — se identifica por
+-- order_ref (va en el "reference" del link de Clip) y se le entrega un
+-- download_token de un solo uso tras el webhook de pago confirmado.
+create table if not exists hrm_directory_purchases (
+  id              uuid primary key default gen_random_uuid(),
+  email           text not null,
+  order_ref       text not null unique,
+  status          text not null default 'pending' check (status in ('pending','paid')),
+  clip_order_id   text,
+  download_token  text unique,
+  downloaded_at   timestamptz,
+  amount          int default 99,
+  created_at      timestamptz default now()
+);
+-- Sin RLS: solo se accede desde el backend con service_role (no hay sesión
+-- de usuario que lo posea, es un comprador anónimo).

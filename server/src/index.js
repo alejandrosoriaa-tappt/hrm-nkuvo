@@ -9,6 +9,7 @@ import { anthropicEnabled } from './lib/anthropic.js'
 import hrmRoutes from './routes/hrm.js'
 import authRoutes from './routes/auth.js'
 import billingRoutes from './routes/billing.js'
+import directoryRoutes from './routes/directory.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -40,6 +41,9 @@ app.get('/health', (req, res) => res.json({ ok: true }))
 // antes de llegar al billingRouter, bloqueándose con authMiddleware. El orden
 // correcto es: billing primero, luego el router genérico de HRM.
 app.use('/api/hrm/billing', billingRoutes)
+// Venta suelta del directorio ($99, sin cuenta) — pública, antes del router
+// genérico de HRM por la misma razón que billing: authMiddleware la bloquearía.
+app.use('/api/hrm/directory', directoryRoutes)
 app.use('/api/hrm', hrmRoutes)
 app.use('/api/auth', authRoutes)
 
