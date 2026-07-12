@@ -141,11 +141,25 @@ export default function DirectorioLandingPage() {
               </button>
             </form>
 
-            <p style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.875rem', justifyContent: 'center' }}>
-              <Lock size={12} />
-              Pago procesado de forma segura por{' '}
-              <a href="https://clip.mx" target="_blank" rel="noreferrer" style={{ color: 'var(--md-primary)' }}>Clip</a>.
-              No guardamos datos de tarjeta.
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.125rem',
+              padding: '0.75rem 0.875rem', borderRadius: 12, background: 'var(--md-surface-container-low)',
+            }}>
+              <ClipBadge />
+              <div>
+                <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--md-on-surface)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Lock size={13} style={{ color: 'var(--md-primary)' }} />
+                  Pago 100% seguro con Clip
+                </p>
+                <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.125rem' }}>
+                  Nunca vemos ni guardamos los datos de tu tarjeta.
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.75rem', textAlign: 'center' }}>
+              Al comprar aceptas nuestro{' '}
+              <Link to="/privacidad" style={{ color: 'var(--md-primary)', fontWeight: 500 }}>Aviso de Privacidad</Link>.
             </p>
           </div>
 
@@ -248,5 +262,21 @@ function LogoMark() {
       <path d="M4 34 V14 a6 6 0 0 1 12 0 V34 Z" fill="#16A34A" />
       <path d="M24 34 V14 a6 6 0 0 1 12 0 V34 Z" fill="#34D399" />
     </svg>
+  )
+}
+
+// Insignia de marca de Clip (procesador de pago) — wordmark propio, no un
+// logo oficial descargado, para la señal de confianza en el checkout.
+function ClipBadge() {
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 40, height: 40, borderRadius: 10, background: '#FF5A1F', flexShrink: 0,
+      }}
+      aria-label="Clip"
+    >
+      <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: '#FFFFFF', fontStyle: 'italic' }}>clip</span>
+    </div>
   )
 }
