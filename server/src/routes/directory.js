@@ -223,29 +223,64 @@ router.get('/download/:token', async (req, res) => {
   wb.creator = 'HRM NKUVO'
   const ws = wb.addWorksheet('Directorio de Reclutadoras')
 
+  // Sin logo/imagen embebida a propósito — todo el look de marca (banda
+  // verde, tipografía) se logra con formato de celdas, así el archivo pesa
+  // menos y el texto se mantiene seleccionable/buscable.
   ws.columns = [
-    { header: 'Reclutadora', key: 'nombre',    width: 34 },
-    { header: 'Industria',   key: 'industria', width: 34 },
-    { header: 'Sitio web',   key: 'sitio_web', width: 32 },
-    { header: 'Correo',      key: 'email',     width: 28 },
-    { header: 'Teléfono',    key: 'telefono',  width: 24 },
-    { header: 'Ciudad',      key: 'ciudad',    width: 24 },
+    { key: 'id',        width: 6 },
+    { key: 'nombre',    width: 32 },
+    { key: 'sitio_web', width: 30 },
+    { key: 'telefono',  width: 20 },
+    { key: 'email',     width: 30 },
+    { key: 'ciudad',    width: 26 },
+    { key: 'industria', width: 34 },
   ]
 
-  ws.getRow(1).eachCell(cell => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16A34A' } }
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
-  })
+  // Fila 1 — banner de título (verde oscuro, combinada A1:G1)
+  ws.mergeCells('A1:G1')
+  ws.getRow(1).height = 28
+  const titleCell = ws.getCell('A1')
+  titleCell.value = 'Directorio de reclutadoras y agencias verificadas en México'
+  titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF15803D' } }
+  titleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 }
 
-  ;(recruiters || []).forEach(r => {
-    ws.addRow({
+  // Fila 2 — banner de subtítulo (verde, combinada A2:G2)
+  ws.mergeCells('A2:G2')
+  ws.getRow(2).height = 18
+  const fechaLegible = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+  const subtitleCell = ws.getCell('A2')
+  subtitleCell.value = `Actualizado: ${fechaLegible}  ·  Total de registros: ${(recruiters || []).length}`
+  subtitleCell.font = { size: 10, color: { argb: 'FFFFFFFF' } }
+  subtitleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16A34A' } }
+  subtitleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 }
+
+  // Fila 3 — encabezados de columna
+  const headerRow = ws.getRow(3)
+  headerRow.values = ['ID', 'Reclutadora', 'Sitio web', 'Teléfono', 'Correo', 'Ciudad', 'Industria']
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16A34A' } }
+    cell.alignment = { vertical: 'middle' }
+  })
+  ws.views = [{ state: 'frozen', ySplit: 3 }]
+
+  ;(recruiters || []).forEach((r, i) => {
+    const row = ws.addRow({
+      id:        i + 1,
       nombre:    r.nombre    || '',
-      industria: r.industria || '',
-      sitio_web: r.sitio_web || '',
-      email:     r.email     || '',
+      sitio_web: r.sitio_web ? { text: r.sitio_web, hyperlink: r.sitio_web } : '',
       telefono:  r.telefono  || '',
+      email:     r.email     || '',
       ciudad:    r.ciudad    || '',
+      industria: r.industria || '',
     })
+    if (i % 2 === 1) {
+      row.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F3EC' } }
+      })
+    }
+    row.getCell('sitio_web').font = { color: { argb: 'FF16A34A' }, underline: true }
   })
 
   // Marca de agua de trazabilidad — no evita compartirlo, pero identifica
