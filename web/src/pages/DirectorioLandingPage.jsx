@@ -157,7 +157,7 @@ export default function DirectorioLandingPage() {
 
               <button type="submit" className="btn btn-primary w-full" disabled={loading}>
                 {loading ? <span className="spinner spinner-sm" /> : <CreditCard size={16} />}
-                {loading ? 'Redirigiendo a Clip…' : 'Comprar por $99 MXN'}
+                {loading ? 'Redirigiendo a Clip…' : 'Comprar por $1 MXN (PRUEBA)'}
               </button>
             </form>
 
@@ -187,7 +187,8 @@ export default function DirectorioLandingPage() {
           <div style={{ flex: '2 1 480px', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.625rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--md-on-surface-variant)' }}>
-                Así se ve un extracto real (10 de {TOTAL_RECRUITERS} filas)
+                Así se ve un extracto real (10 de {TOTAL_RECRUITERS} filas) — el Excel completo
+                también incluye página web, teléfono, correo y ciudad de cada una.
               </span>
               <span style={{ flex: 1 }} />
               <span className="chip chip-success">
@@ -240,9 +241,6 @@ export default function DirectorioLandingPage() {
                 </table>
               </div>
             </div>
-            <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '0.5rem' }}>
-              El Excel que descargas incluye también correo, teléfono y ciudad de cada reclutadora.
-            </p>
           </div>
         </div>
 

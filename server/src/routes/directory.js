@@ -44,6 +44,11 @@ const APP_URL = process.env.APP_URL || 'https://hrm.nkuvo.com'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PAID_STATUSES = ['PAID', 'COMPLETED', 'APPROVED', 'ACTIVE', 'CHECKOUT_COMPLETED']
 
+// ⚠️ PRUEBA TEMPORAL: precio real es $99. Regresar a 99 antes de anunciar/
+// compartir el link públicamente — ver web/src/pages/DirectorioLandingPage.jsx
+// (botón "Comprar por $1 MXN (PRUEBA)") para el otro lado de este cambio.
+const DIRECTORY_PRICE = 1
+
 const checkoutLimiter = rateLimit({ windowMs: 60_000, max: 10 })
 const lookupLimiter = rateLimit({ windowMs: 60_000, max: 8 })
 
@@ -62,7 +67,7 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
 
   const { error } = await supabase
     .from('hrm_directory_purchases')
-    .insert({ email, order_ref: orderRef, status: 'pending', amount: 99 })
+    .insert({ email, order_ref: orderRef, status: 'pending', amount: DIRECTORY_PRICE })
 
   if (error) return res.status(500).json({ error: error.message })
 
@@ -73,7 +78,7 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Basic ${clipToken}` },
       body: JSON.stringify({
-        amount: 99,
+        amount: DIRECTORY_PRICE,
         currency: 'MXN',
         purchase_description: 'Directorio de reclutadoras — HRM NKUVO',
         redirection_url: {
@@ -95,7 +100,7 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
     res.json({
       checkoutUrl: data.payment_request_url,
       orderRef,
-      amount: 99,
+      amount: DIRECTORY_PRICE,
       currency: 'MXN',
     })
   } catch (err) {
