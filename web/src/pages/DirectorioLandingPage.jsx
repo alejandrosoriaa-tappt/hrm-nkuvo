@@ -4,6 +4,7 @@ import {
   CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock,
   Download, Search, Zap, BadgeCheck, Ban, Clock, GraduationCap, Briefcase,
   UserX, RefreshCw, ArrowDown, MousePointerClick, PackageCheck, Star, Users,
+  Calendar, MessageSquare, ListChecks,
 } from 'lucide-react'
 import { directoryAPI } from '../lib/api.js'
 import { ORDER_REF_KEY } from './directoryOrderRef.js'
@@ -157,14 +158,15 @@ export default function DirectorioLandingPage() {
             {/* Copy + CTA */}
             <div style={{ flex: '1 1 460px', minWidth: 0 }}>
               <span className="chip chip-primary" style={{ marginBottom: '1rem' }}>
-                <Zap size={12} /> Directorio privado de reclutadores en México
+                <Zap size={12} /> {TOTAL_RECRUITERS} reclutadoras verificadas · {UPDATED_LABEL}
               </span>
               <h1 style={{ fontSize: 'clamp(2.25rem, 5vw, 3.25rem)', fontWeight: 800, lineHeight: 1.08, color: 'var(--md-on-surface)', letterSpacing: '-0.02em' }}>
                 Encuentra trabajo<br />más rápido.
               </h1>
               <p style={{ fontSize: '1.0625rem', color: 'var(--md-on-surface-variant)', marginTop: '1.125rem', maxWidth: 480, lineHeight: 1.55 }}>
                 Accede al directorio privado de <strong style={{ color: 'var(--md-on-surface)' }}>147 reclutadoras y agencias verificadas</strong> de
-                México — el que normalmente tardarías semanas en armar tú solo. Correo, teléfono y sitio web de cada una.
+                México. Correo, teléfono y sitio web de contacto — lo que normalmente te tomaría semanas recopilar, aquí está
+                listo para descargar en menos de dos minutos.
               </p>
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1.25rem' }}>
@@ -184,11 +186,15 @@ export default function DirectorioLandingPage() {
                 className="btn btn-primary"
                 style={{ marginTop: '1.75rem', padding: '0.875rem 1.75rem', fontSize: '1rem', fontWeight: 700 }}
               >
-                Quiero mi directorio <ArrowDown size={16} />
+                Descargar ahora <ArrowDown size={16} />
               </button>
-              <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '0.625rem' }}>
-                Pago único de $99 MXN · sin cuenta · sin mensualidad
-              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem 1rem', marginTop: '0.75rem' }}>
+                {['Descarga inmediata', 'Pago único', 'Sin mensualidad'].map(t => (
+                  <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
+                    <CheckCircle2 size={12} style={{ color: 'var(--md-primary)' }} /> {t}
+                  </span>
+                ))}
+              </div>
             </div>
 
             {/* Tarjeta de compra */}
@@ -220,6 +226,9 @@ export default function DirectorioLandingPage() {
                     autoComplete="email"
                     required
                   />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
+                    Recibirás el archivo inmediatamente después del pago.
+                  </p>
                 </div>
 
                 <button type="submit" className="btn btn-primary w-full" disabled={loading} style={{ padding: '0.875rem', fontSize: '0.9375rem', fontWeight: 700 }}>
@@ -262,8 +271,8 @@ export default function DirectorioLandingPage() {
           maxWidth: 900, marginInline: 'auto', lineHeight: 1.8,
         }}>
           <span style={{ fontWeight: 600, color: 'var(--md-on-surface)' }}>Ya están en el directorio: </span>
-          Adecco · Manpower · Randstad · Korn Ferry · Michael Page · Confisa Group · Coca Consultores ·{' '}
-          <span style={{ fontWeight: 600, color: 'var(--md-primary)' }}>+140 más</span>
+          Adecco · Manpower · Randstad · Korn Ferry · Michael Page · Boyden · Confisa Group · Coca Consultores ·{' '}
+          <span style={{ fontWeight: 600, color: 'var(--md-primary)' }}>+139 más</span>
         </p>
       </div>
 
@@ -533,18 +542,40 @@ export default function DirectorioLandingPage() {
             className="btn"
             style={{ background: 'var(--md-on-primary)', color: 'var(--md-primary)', padding: '0.875rem 1.75rem', fontSize: '0.9375rem', fontWeight: 700 }}
           >
-            <Download size={17} /> Quiero mi directorio
+            <Download size={17} /> Descargar ahora
           </button>
         </div>
 
+        {/* ── Cross-sell a HRM Pro — el directorio es la puerta de entrada,
+            no el negocio en sí. Solo features que YA existen en la app. ── */}
+        <div className="card" style={{ marginTop: '2rem', maxWidth: 640, marginInline: 'auto', padding: '1.75rem' }}>
+          <p style={{ fontWeight: 800, fontSize: '1.0625rem', color: 'var(--md-on-surface)', marginBottom: '0.375rem' }}>
+            ¿Y ahora qué hago con estos contactos?
+          </p>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '1rem' }}>
+            El directorio es solo el primer paso. HRM Pro te ayuda a llevar el seguimiento de cada contacto:
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.625rem', marginBottom: '1.25rem' }}>
+            {[
+              { icon: ListChecks,     text: 'Guarda y da seguimiento a cada reclutadora que contactaste' },
+              { icon: MessageSquare,  text: 'Plantillas de mensajes listas para copiar y pegar' },
+              { icon: Calendar,       text: 'Agenda tus entrevistas y citas de seguimiento' },
+            ].map(({ icon: Icon, text }) => (
+              <div key={text} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <Icon size={15} style={{ color: 'var(--md-primary)', flexShrink: 0, marginTop: 2 }} />
+                <span style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface)' }}>{text}</span>
+              </div>
+            ))}
+          </div>
+          <Link to="/signup" className="btn btn-outline" style={{ fontSize: '0.8125rem' }}>
+            Conoce HRM Pro — $299/mes
+          </Link>
+        </div>
+
         {/* ── Footer ── */}
-        <div style={{ textAlign: 'center', marginTop: '2.5rem', paddingBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ textAlign: 'center', marginTop: '2rem', paddingBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <p style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
             <ShieldCheck size={13} /> Directorio HRM NKUVO — hrm.nkuvo.com
-          </p>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
-            ¿Buscas contacto ilimitado y seguimiento de candidaturas?{' '}
-            <Link to="/signup" style={{ color: 'var(--md-primary)', fontWeight: 500 }}>Conoce la app completa</Link>
           </p>
         </div>
       </div>
