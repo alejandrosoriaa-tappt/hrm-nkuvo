@@ -1,15 +1,21 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock, FileSpreadsheet, Download, Search } from 'lucide-react'
+import {
+  CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock, FileSpreadsheet,
+  Download, Search, Zap, BadgeCheck, Ban, Clock, GraduationCap, Briefcase,
+  UserX, RefreshCw, ArrowDown, MousePointerClick, PackageCheck,
+} from 'lucide-react'
 import { directoryAPI } from '../lib/api.js'
 import { ORDER_REF_KEY } from './directoryOrderRef.js'
 
 // Actualizar si el directorio crece — ver db/seed_hrm_recruiters.sql
 const TOTAL_RECRUITERS = 147
-const UPDATED_LABEL = 'Actualizado 12 jul 2026'
+const UPDATED_LABEL = 'Actualizado julio 2026'
 
-// Mismo extracto de 10 filas (5 marcas grandes + 5 boutiques) que se usó en
-// el creativo de Instagram, para que la landing tenga el mismo gancho visual.
+// Mismo extracto (marcas grandes + boutiques) que se usó en el creativo de
+// Instagram, para que la landing tenga el mismo gancho visual. El orden
+// pone primero las marcas más reconocibles a propósito — es la señal de
+// confianza más rápida de leer.
 const PREVIEW_ROWS = [
   { nombre: 'Adecco Querétaro',           industria: 'Generalista, outsourcing/temporal',        sitio: 'adecco.com.mx',                    ciudad: 'Santiago de Querétaro, Qro.' },
   { nombre: 'Manpower Querétaro',         industria: 'Generalista, outsourcing/temporal',        sitio: 'manpower.com.mx',                  ciudad: 'Santiago de Querétaro, Qro.' },
@@ -27,6 +33,10 @@ const FILE_NAME = 'directorio-reclutadoras-hrm-2026-07-12.xlsx'
 
 const FAQS = [
   {
+    q: '¿No puedo buscar esto gratis en Google?',
+    a: 'Sí puedes intentarlo — pero arma tú mismo la lista, entra sitio por sitio a sacar correo/teléfono, y verifica cuáles siguen activas y cuáles están registradas ante la STPS. Eso son horas. El directorio ya viene curado, verificado y listo para usarse en el tiempo que tardas en tomarte un café.',
+  },
+  {
     q: '¿Cuántas veces puedo descargar el archivo?',
     a: 'Una sola. El link de descarga se genera al momento de tu pago y se desactiva en cuanto lo usas — guarda el archivo apenas lo descargues.',
   },
@@ -42,6 +52,36 @@ const FAQS = [
     q: 'Pagué pero Clip no me regresó a la descarga, ¿qué hago?',
     a: 'Usa el buscador "¿Ya pagaste?" más abajo con el correo que usaste al comprar — ahí recuperas tu descarga directamente, sin esperar a nadie.',
   },
+]
+
+const TRUST_CHIPS = [
+  { icon: BadgeCheck, label: 'Registradas ante la STPS' },
+  { icon: RefreshCw,  label: UPDATED_LABEL },
+  { icon: Ban,        label: 'Sin scraping — dato verificado' },
+]
+
+const RECEIVES = [
+  '147 reclutadoras y agencias de colocación',
+  'Correo directo de contacto',
+  'Teléfono directo',
+  'Sitio web oficial',
+  'Ciudad / zona donde operan',
+  'Industria o especialidad',
+  'Descarga inmediata en Excel',
+  'Sin cuenta, sin mensualidad',
+]
+
+const STEPS = [
+  { icon: CreditCard,          title: 'Compras',   text: 'Un pago único de $99 MXN, procesado por Clip. Solo necesitas tu correo.' },
+  { icon: Download,            title: 'Descargas', text: 'El Excel con las 147 reclutadoras está listo al instante — una sola descarga.' },
+  { icon: MousePointerClick,   title: 'Contactas', text: 'Escribes directo a quien decide contratar, sin esperar a que una vacante te encuentre.' },
+]
+
+const PERSONAS = [
+  { icon: GraduationCap, label: 'Recién egresados' },
+  { icon: UserX,          label: 'En búsqueda activa de empleo' },
+  { icon: Briefcase,      label: 'Ejecutivos en transición' },
+  { icon: Clock,          label: 'Quien no quiere esperar a que lo encuentren' },
 ]
 
 export default function DirectorioLandingPage() {
@@ -83,169 +123,336 @@ export default function DirectorioLandingPage() {
     }
   }
 
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'var(--md-surface-container-low)',
-        backgroundImage: 'radial-gradient(var(--md-outline-variant) 1.5px, transparent 1.5px)',
-        backgroundSize: '22px 22px',
-      }}
-    >
-      <div style={{ maxWidth: 1040, margin: '0 auto', padding: '3rem 1.25rem 4rem' }}>
+  const scrollToBuy = () => {
+    document.getElementById('comprar')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
 
-        {/* ── Hero ── */}
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.625rem', marginBottom: '1.25rem' }}>
+  return (
+    <div style={{ background: 'var(--md-surface)' }}>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          HERO — la propuesta de valor + compra caben en la primera pantalla
+      ══════════════════════════════════════════════════════════════════ */}
+      <div
+        style={{
+          background: 'var(--md-surface-container-low)',
+          backgroundImage: 'radial-gradient(var(--md-outline-variant) 1.5px, transparent 1.5px)',
+          backgroundSize: '22px 22px',
+          borderBottom: '1px solid var(--md-outline-variant)',
+        }}
+      >
+        <div style={{ maxWidth: 1120, margin: '0 auto', padding: '2.5rem 1.25rem 3rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.625rem', marginBottom: '1.75rem' }}>
             <LogoMark />
             <span style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--md-on-surface)' }}>
               HRM <span style={{ color: 'var(--md-primary)' }}>NKUVO</span>
             </span>
           </div>
-          <h1 style={{ fontSize: 'clamp(1.625rem, 4vw, 2.5rem)', fontWeight: 800, lineHeight: 1.25, color: 'var(--md-on-surface)' }}>
-            {TOTAL_RECRUITERS} reclutadoras y agencias verificadas,<br />
-            en{' '}
-            <span style={{ textDecoration: 'underline', textDecorationColor: 'var(--md-primary)', textDecorationThickness: 5, textUnderlineOffset: 6 }}>
-              un Excel
-            </span>
-          </h1>
-          <p style={{ fontSize: '0.9375rem', color: 'var(--md-on-surface-variant)', marginTop: '0.875rem', maxWidth: 480, marginInline: 'auto' }}>
-            Nombre, sitio web, correo, teléfono y ciudad de cada una — incluye agencias
-            registradas ante la STPS. Sin mensualidad, un pago único.
+
+          <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+
+            {/* Copy + CTA */}
+            <div style={{ flex: '1 1 460px', minWidth: 0 }}>
+              <span className="chip chip-primary" style={{ marginBottom: '1rem' }}>
+                <Zap size={12} /> Directorio privado de reclutadores en México
+              </span>
+              <h1 style={{ fontSize: 'clamp(2.25rem, 5vw, 3.25rem)', fontWeight: 800, lineHeight: 1.08, color: 'var(--md-on-surface)', letterSpacing: '-0.02em' }}>
+                Encuentra trabajo<br />más rápido.
+              </h1>
+              <p style={{ fontSize: '1.0625rem', color: 'var(--md-on-surface-variant)', marginTop: '1.125rem', maxWidth: 480, lineHeight: 1.55 }}>
+                Accede al directorio privado de <strong style={{ color: 'var(--md-on-surface)' }}>147 reclutadoras y agencias verificadas</strong> de
+                México — el que normalmente tardarías semanas en armar tú solo. Correo, teléfono y sitio web de cada una.
+              </p>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1.25rem' }}>
+                {TRUST_CHIPS.map(({ icon: Icon, label }) => (
+                  <span key={label} className="chip chip-success"><Icon size={12} /> {label}</span>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={scrollToBuy}
+                className="btn btn-primary"
+                style={{ marginTop: '1.75rem', padding: '0.875rem 1.75rem', fontSize: '1rem', fontWeight: 700 }}
+              >
+                Quiero mi directorio <ArrowDown size={16} />
+              </button>
+              <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '0.625rem' }}>
+                Pago único de $99 MXN · sin cuenta · sin mensualidad
+              </p>
+            </div>
+
+            {/* Tarjeta de compra */}
+            <div id="comprar" className="card" style={{ flex: '1 1 380px', maxWidth: 420, scrollMarginTop: '2rem' }}>
+              <p style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--md-on-surface)', marginBottom: '0.25rem' }}>
+                Descarga el directorio
+              </p>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '1.125rem' }}>
+                Deja tu correo y págalo en el momento — el Excel queda listo al instante.
+              </p>
+
+              {error && (
+                <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="input-group">
+                  <label className="input-label" htmlFor="email">Correo electrónico</label>
+                  <input
+                    id="email"
+                    type="email"
+                    className="input"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-primary w-full" disabled={loading} style={{ padding: '0.875rem', fontSize: '0.9375rem', fontWeight: 700 }}>
+                  {loading ? <span className="spinner spinner-sm" /> : <Download size={17} />}
+                  {loading ? 'Redirigiendo a Clip…' : 'Descargar ahora — $99 MXN'}
+                </button>
+              </form>
+
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.125rem',
+                padding: '0.75rem 0.875rem', borderRadius: 12, background: 'var(--md-surface-container-low)',
+              }}>
+                <ClipBadge />
+                <div>
+                  <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--md-on-surface)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Lock size={13} style={{ color: 'var(--md-primary)' }} />
+                    Pago 100% seguro con Clip
+                  </p>
+                  <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.125rem' }}>
+                    Nunca vemos ni guardamos los datos de tu tarjeta.
+                  </p>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.75rem', textAlign: 'center' }}>
+                Al comprar aceptas nuestro{' '}
+                <Link to="/privacidad" style={{ color: 'var(--md-primary)', fontWeight: 500 }}>Aviso de Privacidad</Link>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          MARCAS RECONOCIBLES — prueba de calidad de dato en una línea
+      ══════════════════════════════════════════════════════════════════ */}
+      <div style={{ borderBottom: '1px solid var(--md-outline-variant)', padding: '1.25rem 1.25rem' }}>
+        <p style={{
+          textAlign: 'center', fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)',
+          maxWidth: 900, marginInline: 'auto', lineHeight: 1.8,
+        }}>
+          <span style={{ fontWeight: 600, color: 'var(--md-on-surface)' }}>Ya están en el directorio: </span>
+          Adecco · Manpower · Randstad · Korn Ferry · Michael Page · Confisa Group · Coca Consultores ·{' '}
+          <span style={{ fontWeight: 600, color: 'var(--md-primary)' }}>+140 más</span>
+        </p>
+      </div>
+
+      <div style={{ maxWidth: 1120, margin: '0 auto', padding: '0 1.25rem' }}>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            EXCEL GIGANTE — la percepción de valor se dispara viéndolo grande
+        ══════════════════════════════════════════════════════════════════ */}
+        <div style={{ marginTop: '3.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--md-on-surface)' }}>
+              Así se ve por dentro
+            </h2>
+            <span style={{ flex: 1 }} />
+            <span className="chip chip-success"><CheckCircle2 size={12} /> {UPDATED_LABEL}</span>
+            <span className="chip chip-success">{TOTAL_RECRUITERS} registros</span>
+          </div>
+          <p style={{ fontSize: '0.875rem', color: 'var(--md-on-surface-variant)', marginBottom: '1.25rem', maxWidth: 640 }}>
+            Extracto real de 10 de las {TOTAL_RECRUITERS} filas. El Excel completo trae correo, teléfono, sitio web,
+            ciudad e industria de cada una.
+          </p>
+
+          <div style={{ position: 'relative', border: '1px solid var(--md-outline-variant)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow-2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1.25rem', background: 'var(--md-surface-container-low)', borderBottom: '1px solid var(--md-outline-variant)' }}>
+              <FileSpreadsheet size={18} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
+              <span style={{ fontSize: '0.8125rem', fontFamily: 'monospace', color: 'var(--md-on-surface-variant)' }}>{FILE_NAME}</span>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: '0.9375rem', tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: '30%' }} />
+                  <col style={{ width: '38%' }} />
+                  <col style={{ width: '32%' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    {['Reclutadora', 'Industria', 'Sitio web'].map(h => (
+                      <th
+                        key={h}
+                        style={{
+                          textAlign: 'left', padding: '0.875rem 1.25rem', fontSize: '0.75rem',
+                          fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
+                          color: '#FFFFFF', background: '#16A34A',
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {PREVIEW_ROWS.map((row, i) => (
+                    <tr key={row.nombre} style={{ background: i % 2 === 1 ? 'var(--md-surface-container-low)' : 'transparent' }}>
+                      <td style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--md-outline-variant)', fontWeight: 700, overflowWrap: 'break-word', color: 'var(--md-on-surface)' }}>{row.nombre}</td>
+                      <td style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.industria}</td>
+                      <td style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.sitio}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Fade + overlay: comunica que hay muchas más filas sin inventar contenido falso */}
+            <div style={{
+              position: 'relative', height: 120, marginTop: -100,
+              background: 'linear-gradient(to bottom, transparent, var(--md-surface) 88%)',
+              display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '1rem',
+            }}>
+              <span className="chip chip-primary" style={{ fontSize: '0.8125rem', padding: '0.5rem 1.125rem', boxShadow: 'var(--shadow-2)' }}>
+                + {TOTAL_RECRUITERS - PREVIEW_ROWS.length} reclutadoras más en tu descarga
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            QUÉ RECIBES — claridad total del producto
+        ══════════════════════════════════════════════════════════════════ */}
+        <div className="card" style={{ marginTop: '3.5rem', padding: '2rem', background: 'var(--md-primary-container)', border: 'none' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--md-on-primary-container)', marginBottom: '1.25rem', textAlign: 'center' }}>
+            Qué recibes exactamente
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '0.75rem 1.5rem', maxWidth: 760, marginInline: 'auto' }}>
+            {RECEIVES.map(item => (
+              <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                <CheckCircle2 size={18} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--md-on-primary-container)' }}>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            OBJECIÓN: "esto lo busco gratis" — comparación honesta
+        ══════════════════════════════════════════════════════════════════ */}
+        <div style={{ marginTop: '3.5rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--md-on-surface)', marginBottom: '1.5rem', textAlign: 'center' }}>
+            El producto no es el Excel. Es el tiempo que te ahorra.
+          </h2>
+          <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
+            <div className="card" style={{ flex: '1 1 300px' }}>
+              <p style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.875rem' }}>
+                Buscarlo tú mismo
+              </p>
+              {[
+                'Googlear reclutadoras una por una',
+                'Entrar a cada sitio a sacar correo y teléfono',
+                'Revisar cuáles siguen activas',
+                'Verificar cuáles están registradas ante la STPS',
+                'Horas de trabajo antes de mandar el primer correo',
+              ].map(t => (
+                <div key={t} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '0.625rem' }}>
+                  <Ban size={15} style={{ color: 'var(--md-error)', flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>{t}</span>
+                </div>
+              ))}
+            </div>
+            <div className="card" style={{ flex: '1 1 300px', borderColor: 'var(--md-primary)', borderWidth: 2 }}>
+              <p style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--md-primary)', marginBottom: '0.875rem' }}>
+                Comprar el directorio
+              </p>
+              {[
+                '147 reclutadoras ya verificadas y curadas',
+                'Correo, teléfono y sitio de cada una, listos',
+                'Registradas ante la STPS',
+                'Excel descargado en menos de 2 minutos',
+                'Empiezas a contactar hoy, no en dos semanas',
+              ].map(t => (
+                <div key={t} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '0.625rem' }}>
+                  <CheckCircle2 size={15} style={{ color: 'var(--md-primary)', flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface)', fontWeight: 500 }}>{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            CÓMO FUNCIONA
+        ══════════════════════════════════════════════════════════════════ */}
+        <div style={{ marginTop: '3.5rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--md-on-surface)', marginBottom: '1.5rem', textAlign: 'center' }}>
+            Cómo funciona
+          </h2>
+          <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
+            {STEPS.map(({ icon: Icon, title, text }, i) => (
+              <div key={title} className="card" style={{ flex: '1 1 220px', textAlign: 'center' }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, background: 'var(--md-primary-container)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', marginInline: 'auto', marginBottom: '0.875rem',
+                }}>
+                  <Icon size={20} style={{ color: 'var(--md-primary)' }} />
+                </div>
+                <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--md-primary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  Paso {i + 1}
+                </p>
+                <p style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--md-on-surface)', marginTop: '0.25rem' }}>{title}</p>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginTop: '0.375rem' }}>{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            PARA QUIÉN ES
+        ══════════════════════════════════════════════════════════════════ */}
+        <div style={{ marginTop: '3.5rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--md-on-surface)', marginBottom: '1.5rem', textAlign: 'center' }}>
+            ¿Para quién es este directorio?
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
+            {PERSONAS.map(({ icon: Icon, label }) => (
+              <div key={label} className="card card-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Icon size={20} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--md-on-surface)' }}>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            GARANTÍA
+        ══════════════════════════════════════════════════════════════════ */}
+        <div className="card" style={{ marginTop: '3.5rem', maxWidth: 640, marginInline: 'auto', textAlign: 'center', padding: '2rem' }}>
+          <PackageCheck size={30} style={{ color: 'var(--md-primary)', marginBottom: '0.75rem' }} />
+          <p style={{ fontWeight: 800, fontSize: '1.0625rem', color: 'var(--md-on-surface)', marginBottom: '0.5rem' }}>
+            Garantía de entrega
+          </p>
+          <p style={{ fontSize: '0.875rem', color: 'var(--md-on-surface-variant)', lineHeight: 1.6 }}>
+            Si pagas y por algún motivo el archivo no te llega, lo recuperas con el buscador
+            "¿Ya pagaste?" de abajo o escribiéndonos por WhatsApp — te lo reenviamos, sin vueltas.
           </p>
         </div>
 
-        {/* ── Checkout + preview ── */}
-        <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-
-          {/* Tarjeta de compra */}
-          <div className="card" style={{ flex: '1 1 380px', maxWidth: 420 }}>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1.25rem' }}>
-              {[
-                `${TOTAL_RECRUITERS} reclutadoras y agencias de colocación en México`,
-                'Contacto directo: sitio web, correo y teléfono',
-                'Descarga inmediata en Excel tras el pago',
-              ].map(f => (
-                <li key={f} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
-                  <CheckCircle2 size={15} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
-                  {f}
-                </li>
-              ))}
-            </ul>
-
-            {error && (
-              <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
-                <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="input-group">
-                <label className="input-label" htmlFor="email">Correo electrónico</label>
-                <input
-                  id="email"
-                  type="email"
-                  className="input"
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  required
-                />
-              </div>
-
-              <button type="submit" className="btn btn-primary w-full" disabled={loading}>
-                {loading ? <span className="spinner spinner-sm" /> : <CreditCard size={16} />}
-                {loading ? 'Redirigiendo a Clip…' : 'Comprar por $99 MXN'}
-              </button>
-            </form>
-
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.125rem',
-              padding: '0.75rem 0.875rem', borderRadius: 12, background: 'var(--md-surface-container-low)',
-            }}>
-              <ClipBadge />
-              <div>
-                <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--md-on-surface)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <Lock size={13} style={{ color: 'var(--md-primary)' }} />
-                  Pago 100% seguro con Clip
-                </p>
-                <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.125rem' }}>
-                  Nunca vemos ni guardamos los datos de tu tarjeta.
-                </p>
-              </div>
-            </div>
-
-            <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.75rem', textAlign: 'center' }}>
-              Al comprar aceptas nuestro{' '}
-              <Link to="/privacidad" style={{ color: 'var(--md-primary)', fontWeight: 500 }}>Aviso de Privacidad</Link>.
-            </p>
-          </div>
-
-          {/* Preview tipo Excel */}
-          <div style={{ flex: '2 1 480px', minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.625rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--md-on-surface-variant)' }}>
-                Así se ve un extracto real (10 de {TOTAL_RECRUITERS} filas) — el Excel completo
-                también incluye página web, teléfono, correo y ciudad de cada una.
-              </span>
-              <span style={{ flex: 1 }} />
-              <span className="chip chip-success">
-                <CheckCircle2 size={12} /> {UPDATED_LABEL}
-              </span>
-              <span className="chip chip-success">
-                {TOTAL_RECRUITERS} registros
-              </span>
-            </div>
-
-            <div style={{ border: '1px solid var(--md-outline-variant)', borderRadius: 12, overflow: 'hidden' }}>
-              {/* Tira de archivo, como el header de un Excel real */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.625rem 1rem', background: 'var(--md-surface-container-low)', borderBottom: '1px solid var(--md-outline-variant)' }}>
-                <FileSpreadsheet size={16} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
-                <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--md-on-surface-variant)' }}>{FILE_NAME}</span>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', tableLayout: 'fixed' }}>
-                  <colgroup>
-                    <col style={{ width: '32%' }} />
-                    <col style={{ width: '40%' }} />
-                    <col style={{ width: '28%' }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      {['Reclutadora', 'Industria', 'Sitio web'].map(h => (
-                        <th
-                          key={h}
-                          style={{
-                            textAlign: 'left', padding: '0.625rem 0.875rem', fontSize: '0.6875rem',
-                            fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase',
-                            color: '#FFFFFF', background: '#16A34A',
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {PREVIEW_ROWS.map((row, i) => (
-                      <tr key={row.nombre} style={{ background: i % 2 === 1 ? 'var(--md-surface-container-low)' : 'transparent' }}>
-                        <td style={{ padding: '0.625rem 0.875rem', borderTop: '1px solid var(--md-outline-variant)', fontWeight: 600, overflowWrap: 'break-word', color: 'var(--md-on-surface)' }}>{row.nombre}</td>
-                        <td style={{ padding: '0.625rem 0.875rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.industria}</td>
-                        <td style={{ padding: '0.625rem 0.875rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.sitio}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* ── Recuperar compra (Clip no siempre regresa al sitio tras pagar) ── */}
-        <div className="card" style={{ marginTop: '2.5rem', maxWidth: 480, marginInline: 'auto' }}>
+        <div className="card" style={{ marginTop: '1.5rem', maxWidth: 480, marginInline: 'auto' }}>
           <p style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--md-on-surface)', marginBottom: '0.25rem' }}>
             ¿Ya pagaste?
           </p>
@@ -311,8 +518,26 @@ export default function DirectorioLandingPage() {
           </div>
         </div>
 
+        {/* ── CTA final ── */}
+        <div style={{ marginTop: '3.5rem', textAlign: 'center', padding: '2.5rem 1.5rem', background: 'var(--md-primary)', borderRadius: 24 }}>
+          <p style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--md-on-primary)', marginBottom: '0.5rem' }}>
+            147 reclutadoras te están esperando.
+          </p>
+          <p style={{ fontSize: '0.9375rem', color: 'var(--md-on-primary)', opacity: 0.9, marginBottom: '1.5rem' }}>
+            Un pago único de $99 MXN. Descarga inmediata.
+          </p>
+          <button
+            type="button"
+            onClick={scrollToBuy}
+            className="btn"
+            style={{ background: 'var(--md-on-primary)', color: 'var(--md-primary)', padding: '0.875rem 1.75rem', fontSize: '0.9375rem', fontWeight: 700 }}
+          >
+            <Download size={17} /> Quiero mi directorio
+          </button>
+        </div>
+
         {/* ── Footer ── */}
-        <div style={{ textAlign: 'center', marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ textAlign: 'center', marginTop: '2.5rem', paddingBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <p style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
             <ShieldCheck size={13} /> Directorio HRM NKUVO — hrm.nkuvo.com
           </p>
