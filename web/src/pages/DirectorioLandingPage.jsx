@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock, FileSpreadsheet,
+  CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock,
   Download, Search, Zap, BadgeCheck, Ban, Clock, GraduationCap, Briefcase,
   UserX, RefreshCw, ArrowDown, MousePointerClick, PackageCheck, Star, Users,
 } from 'lucide-react'
@@ -12,35 +12,12 @@ import { ORDER_REF_KEY } from './directoryOrderRef.js'
 const TOTAL_RECRUITERS = 147
 const UPDATED_LABEL = 'Actualizado julio 2026'
 
-// Extracto real (10 de 147 filas) — ver db/seed_hrm_recruiters.sql. Datos
-// reales, no inventados: teléfono y correo se muestran enmascarados con
-// maskPhone/maskEmail (abajo) porque son justo lo que se paga por
-// desbloquear — mostrarlos completos en la landing regalaría el producto.
-const PREVIEW_ROWS = [
-  { nombre: 'Adecco Querétaro',            industria: 'Generalista, outsourcing/temporal',   sitio: 'adecco.com.mx',                   ciudad: 'Santiago de Querétaro, Qro.', telefono: '442 242 4425',        correo: 'calidadmx@adecco.com' },
-  { nombre: 'Boyden México',               industria: 'Executive search, ejecutivo/C-level', sitio: 'boyden.com/mexico',               ciudad: 'CDMX (Santa Fe)',             telefono: '+52 55 3145 9263',    correo: 'mexico@boyden.com' },
-  { nombre: 'Confisa Group',               industria: 'Boutique retained executive search',  sitio: 'confisagroup.com',                ciudad: 'CDMX (Polanco)',              telefono: '+52 55 1660 8135',    correo: 'info@confisagroup.com' },
-  { nombre: 'Coca Consultores',            industria: 'Generalista RH + fiscal/contable',    sitio: 'cocaconsultores.com',             ciudad: 'CDMX (Álvaro Obregón)',       telefono: '(55) 2454 2174',      correo: 'contacto@cocaconsultores.com' },
-  { nombre: 'Apoyo Confiable de Personal', industria: 'Generalista ejecutivo/operativo',     sitio: 'apoyoconfiabledepersonal.com.mx', ciudad: 'CDMX (Roma Norte)',           telefono: '55 5744 4500',        correo: 'apoyoconfiable@prodigy.net.mx' },
-  { nombre: 'Dúo Sinergia',                industria: 'Outsourcing/nómina + generalista',    sitio: 'duosinergia.com',                 ciudad: 'CDMX / Gdl. / Hermosillo',    telefono: '(55) 5543 0205',      correo: 'hermosillo@duosinergia.com' },
-  { nombre: 'Great Team Empresarial',      industria: 'RH generalista para PyMEs',           sitio: 'greatteam.mx',                    ciudad: 'CDMX (Roma Norte)',           telefono: '55 2489 0216',        correo: 'ventas@greatteam.com.mx' },
-  { nombre: 'Avantgarde (AGHCC)',          industria: 'Executive search + assessment',       sitio: 'aghcc.com',                       ciudad: 'CDMX / Monterrey / Qro.',     telefono: '+52 55 3640 0552',    correo: 'contacto@aghcc.com' },
-  { nombre: 'Axis Consultores',            industria: 'Headhunting + nómina',                sitio: 'axisconsultores.com',             ciudad: 'CDMX (Del Valle)',            telefono: '55 5559 3833',        correo: 'ventas@axisconsultores.com' },
-  { nombre: 'Cosmic',                      industria: 'Outsourcing / staffing alto volumen', sitio: 'cosmic.com.mx',                   ciudad: 'CDMX (Benito Juárez)',        telefono: '800 288 9353',        correo: 'info@grupocosmic.com' },
-]
-
-// Enmascara datos reales para la preview — visible lo suficiente para dar
-// certeza de que el dato existe y es real, sin ser utilizable sin pagar.
-function maskPhone(phone) {
-  const visible = phone.slice(0, 7)
-  return visible + phone.slice(7).replace(/[^\s/]/g, '•')
-}
-function maskEmail(email) {
-  const [user, domain] = email.split('@')
-  return `${user.slice(0, 1)}${'•'.repeat(Math.max(user.length - 1, 4))}@${domain}`
-}
-
-const FILE_NAME = 'directorio-reclutadoras-hrm-2026-07-12.xlsx'
+// La preview de "así se ve por dentro" es una captura real (excel-preview.jpg)
+// generada a partir de 10 filas reales de db/seed_hrm_recruiters.sql, con
+// teléfono/correo enmascarados directamente en la imagen — no una tabla
+// HTML, para que se vea como una captura de pantalla real de Excel (lo que
+// la gente reconoce al instante) en vez de un símil.
+const PREVIEW_ROWS_COUNT = 10
 
 const FAQS = [
   {
@@ -305,76 +282,24 @@ export default function DirectorioLandingPage() {
             <span className="chip chip-success">{TOTAL_RECRUITERS} registros</span>
           </div>
           <p style={{ fontSize: '0.875rem', color: 'var(--md-on-surface-variant)', marginBottom: '1.25rem', maxWidth: 640 }}>
-            Extracto real de 10 de las {TOTAL_RECRUITERS} filas. El Excel completo trae correo, teléfono, sitio web,
-            ciudad e industria de cada una.
+            Captura real de 10 de las {TOTAL_RECRUITERS} filas (correo y teléfono difuminados a propósito).
+            El Excel completo trae correo, teléfono, sitio web, ciudad e industria de cada una.
           </p>
 
           <div style={{ position: 'relative', border: '1px solid var(--md-outline-variant)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow-2)' }}>
-            {/* Barra de marca estilo encabezado de Excel real */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '1rem 1.25rem', background: '#15803D' }}>
-              <img src="/logo-mark.png" alt="" width={30} height={30} style={{ flexShrink: 0 }} />
-              <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: '0.9375rem', fontWeight: 800, color: '#FFFFFF' }}>
-                  Directorio de reclutadoras y agencias verificadas en México
-                </p>
-                <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.85)', marginTop: '0.125rem' }}>
-                  Actualizado: 12 de julio de 2026 · Total de registros: {TOTAL_RECRUITERS}
-                </p>
-              </div>
-            </div>
-            <div style={{ padding: '0.5rem 1.25rem', background: 'var(--md-surface-container-low)', borderBottom: '1px solid var(--md-outline-variant)' }}>
-              <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--md-on-surface-variant)' }}>{FILE_NAME}</span>
-            </div>
-
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', minWidth: 880, borderCollapse: 'collapse', fontSize: '0.875rem', tableLayout: 'fixed' }}>
-                <colgroup>
-                  <col style={{ width: '18%' }} />
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '19%' }} />
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '18%' }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    {['Reclutadora', 'Sitio web', 'Teléfono', 'Correo', 'Ciudad', 'Industria'].map(h => (
-                      <th
-                        key={h}
-                        style={{
-                          textAlign: 'left', padding: '0.75rem 1rem', fontSize: '0.6875rem',
-                          fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
-                          color: '#FFFFFF', background: '#16A34A',
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {PREVIEW_ROWS.map((row, i) => (
-                    <tr key={row.nombre} style={{ background: i % 2 === 1 ? 'var(--md-surface-container-low)' : 'transparent' }}>
-                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', fontWeight: 700, overflowWrap: 'break-word', color: 'var(--md-on-surface)' }}>{row.nombre}</td>
-                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-primary)' }}>{row.sitio}</td>
-                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)', fontFamily: 'monospace', fontSize: '0.8125rem' }}>{maskPhone(row.telefono)}</td>
-                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)', fontFamily: 'monospace', fontSize: '0.8125rem' }}>{maskEmail(row.correo)}</td>
-                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.ciudad}</td>
-                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.industria}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
+            <img
+              src="/excel-preview.jpg"
+              alt="Captura de Excel abierto en macOS mostrando el directorio: columnas ID, Reclutadora, Página web, Teléfono, Correo, Ciudad e Industria, con 10 filas reales de ejemplo (Adecco Querétaro, Boyden México, Confisa Group y otras)"
+              style={{ display: 'block', width: '100%', height: 'auto' }}
+            />
             {/* Fade + overlay: comunica que hay muchas más filas sin inventar contenido falso */}
             <div style={{
-              position: 'relative', height: 120, marginTop: -100,
-              background: 'linear-gradient(to bottom, transparent, var(--md-surface) 88%)',
+              position: 'absolute', left: 0, right: 0, bottom: 0, height: '16%',
+              background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.98) 70%)',
               display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '1rem',
             }}>
               <span className="chip chip-primary" style={{ fontSize: '0.8125rem', padding: '0.5rem 1.125rem', boxShadow: 'var(--shadow-2)' }}>
-                + {TOTAL_RECRUITERS - PREVIEW_ROWS.length} reclutadoras más en tu descarga
+                + {TOTAL_RECRUITERS - PREVIEW_ROWS_COUNT} reclutadoras más en tu descarga
               </span>
             </div>
           </div>
