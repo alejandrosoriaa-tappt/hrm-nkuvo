@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock, FileSpreadsheet,
   Download, Search, Zap, BadgeCheck, Ban, Clock, GraduationCap, Briefcase,
-  UserX, RefreshCw, ArrowDown, MousePointerClick, PackageCheck,
+  UserX, RefreshCw, ArrowDown, MousePointerClick, PackageCheck, Star, Users,
 } from 'lucide-react'
 import { directoryAPI } from '../lib/api.js'
 import { ORDER_REF_KEY } from './directoryOrderRef.js'
@@ -75,6 +75,21 @@ const STEPS = [
   { icon: CreditCard,          title: 'Compras',   text: 'Un pago único de $99 MXN, procesado por Clip. Solo necesitas tu correo.' },
   { icon: Download,            title: 'Descargas', text: 'El Excel con las 147 reclutadoras está listo al instante — una sola descarga.' },
   { icon: MousePointerClick,   title: 'Contactas', text: 'Escribes directo a quien decide contratar, sin esperar a que una vacante te encuentre.' },
+]
+
+// ── Prueba social — SOLO datos reales ───────────────────────────────────
+// No fabricar. SOCIAL_PROOF_COUNT y TESTIMONIALS se quedan vacíos/en 0
+// hasta que existan compras y testimonios reales; los componentes de abajo
+// (chip de contador, sección de reseñas) se auto-ocultan mientras tanto.
+//
+// Para activar el contador: cambiar SOCIAL_PROOF_COUNT por el número real
+// de descargas confirmadas (select count(*) from hrm_directory_purchases
+// where status='paid' — ver server/src/routes/directory.js).
+// Para activar reseñas: pedirle a un comprador real su OK por WhatsApp para
+// citarlo, y agregar un objeto a TESTIMONIALS con su nombre/contexto real.
+const SOCIAL_PROOF_COUNT = 0
+const TESTIMONIALS = [
+  // { name: 'Nombre real', context: 'Contexto real (ej. "Contadora, CDMX")', quote: 'Cita real, con permiso.' },
 ]
 
 const PERSONAS = [
@@ -165,6 +180,11 @@ export default function DirectorioLandingPage() {
               </p>
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1.25rem' }}>
+                {SOCIAL_PROOF_COUNT > 0 && (
+                  <span className="chip chip-primary">
+                    <Users size={12} /> {SOCIAL_PROOF_COUNT} candidatos ya lo descargaron
+                  </span>
+                )}
                 {TRUST_CHIPS.map(({ icon: Icon, label }) => (
                   <span key={label} className="chip chip-success"><Icon size={12} /> {label}</span>
                 ))}
@@ -438,16 +458,18 @@ export default function DirectorioLandingPage() {
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════
-            GARANTÍA
+            GARANTÍA — 3 días, devolución real (proceso manual vía WhatsApp +
+            reembolso desde el dashboard de Clip, no hay refund automatizado)
         ══════════════════════════════════════════════════════════════════ */}
         <div className="card" style={{ marginTop: '3.5rem', maxWidth: 640, marginInline: 'auto', textAlign: 'center', padding: '2rem' }}>
           <PackageCheck size={30} style={{ color: 'var(--md-primary)', marginBottom: '0.75rem' }} />
           <p style={{ fontWeight: 800, fontSize: '1.0625rem', color: 'var(--md-on-surface)', marginBottom: '0.5rem' }}>
-            Garantía de entrega
+            Garantía de 3 días
           </p>
           <p style={{ fontSize: '0.875rem', color: 'var(--md-on-surface-variant)', lineHeight: 1.6 }}>
-            Si pagas y por algún motivo el archivo no te llega, lo recuperas con el buscador
-            "¿Ya pagaste?" de abajo o escribiéndonos por WhatsApp — te lo reenviamos, sin vueltas.
+            Si el directorio no te sirve, escríbenos por WhatsApp dentro de los primeros 3 días
+            después de tu compra y te devolvemos tu dinero — sin preguntas. Y si el archivo no
+            te llegó, lo recuperas con el buscador "¿Ya pagaste?" de abajo.
           </p>
         </div>
 
@@ -502,6 +524,32 @@ export default function DirectorioLandingPage() {
             </div>
           )}
         </div>
+
+        {/* ── Reseñas — solo se renderiza si TESTIMONIALS trae datos reales ── */}
+        {TESTIMONIALS.length > 0 && (
+          <div style={{ marginTop: '3rem', maxWidth: 900, marginInline: 'auto' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--md-on-surface)', marginBottom: '1rem', textAlign: 'center' }}>
+              Lo que dicen quienes ya lo compraron
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+              {TESTIMONIALS.map(t => (
+                <div key={t.name} className="card card-sm">
+                  <div style={{ display: 'flex', gap: 2, marginBottom: '0.5rem' }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} size={14} fill="var(--md-primary)" style={{ color: 'var(--md-primary)' }} />
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface)', lineHeight: 1.5, marginBottom: '0.625rem' }}>
+                    "{t.quote}"
+                  </p>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--md-on-surface-variant)' }}>
+                    {t.name} · {t.context}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── FAQ ── */}
         <div style={{ marginTop: '3rem', maxWidth: 640, marginInline: 'auto' }}>
