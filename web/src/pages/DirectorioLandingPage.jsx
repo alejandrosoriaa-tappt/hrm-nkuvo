@@ -157,7 +157,7 @@ export default function DirectorioLandingPage() {
 
               <button type="submit" className="btn btn-primary w-full" disabled={loading}>
                 {loading ? <span className="spinner spinner-sm" /> : <CreditCard size={16} />}
-                {loading ? 'Redirigiendo a Clip…' : 'Comprar por $1 MXN (PRUEBA)'}
+                {loading ? 'Redirigiendo a Clip…' : 'Comprar por $99 MXN'}
               </button>
             </form>
 

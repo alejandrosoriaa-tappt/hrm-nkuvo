@@ -47,10 +47,7 @@ const APP_URL = process.env.APP_URL || 'https://hrm.nkuvo.com'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-// ⚠️ PRUEBA TEMPORAL: precio real es $99. Regresar a 99 antes de anunciar/
-// compartir el link públicamente — ver web/src/pages/DirectorioLandingPage.jsx
-// (botón "Comprar por $1 MXN (PRUEBA)") para el otro lado de este cambio.
-const DIRECTORY_PRICE = 1
+const DIRECTORY_PRICE = 99
 
 const checkoutLimiter = rateLimit({ windowMs: 60_000, max: 10 })
 const lookupLimiter = rateLimit({ windowMs: 60_000, max: 8 })
