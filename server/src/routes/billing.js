@@ -170,36 +170,43 @@ router.post('/webhook', async (req, res) => {
   const periodEnd    = payload.next_payment_date || payload.period_end
 
   // 2a. Directorio suelto ($99, pago único, comprador sin cuenta) creado vía
-  // la API de checkout (POST /v2/checkout en directory.js): ese endpoint no
-  // manda `reference`, manda `metadata.orderRef`. Se revisa ANTES del
-  // early-return de "sin reference" de abajo, que es solo para el flujo de
-  // links hospedados (suscripción/cv_pack) que sí usan `reference`.
-  const directoryOrderRef = payload.metadata?.orderRef
-  if (directoryOrderRef) {
-    const upperStatus = (status || payload.payment_status || '').toUpperCase()
+  // la API de checkout (POST /v2/checkout en directory.js). Confirmado con
+  // pruebas reales que Clip NO regresa `reference` ni `metadata` en este
+  // webhook para pagos creados vía Checkout API — solo `payment_request_id`
+  // (documentado: "se incluye en la respuesta de creación del checkout Y en
+  // la notificación del Checkout Webhook", sirve para reconciliar). Por eso
+  // directory.js guarda ese id en `clip_order_id` al crear el checkout, y
+  // aquí se correlaciona por ese campo en vez de reference/metadata.
+  // Se revisa ANTES del early-return de "sin reference" de abajo, que es
+  // solo para el flujo de links hospedados (suscripción/cv_pack).
+  const clipPaymentRequestId = payload.payment_request_id || payload.order_id || paymentId
+  if (clipPaymentRequestId) {
+    const upperStatus = (status || payload.payment_status || payload.resource_status || '').toUpperCase()
     const paidStatuses = ['PAID', 'COMPLETED', 'APPROVED', 'ACTIVE', 'CHECKOUT_COMPLETED']
 
-    if (!paidStatuses.includes(upperStatus)) {
-      console.log('Clip webhook (directory, metadata): status no es de pago exitoso:', status)
-      return res.sendStatus(200)
-    }
+    if (paidStatuses.includes(upperStatus)) {
+      try {
+        const { data: matched, error } = await supabase
+          .from('hrm_directory_purchases')
+          .update({ status: 'paid', download_token: crypto.randomUUID() })
+          .eq('clip_order_id', clipPaymentRequestId)
+          .eq('status', 'pending') // idempotente: no regenerar token si Clip reintenta el webhook
+          .select('id')
 
-    try {
-      const { error } = await supabase
-        .from('hrm_directory_purchases')
-        .update({ status: 'paid', clip_order_id: paymentId, download_token: crypto.randomUUID() })
-        .eq('order_ref', directoryOrderRef)
-        .eq('status', 'pending') // idempotente: no regenerar token si Clip reintenta el webhook
-
-      if (error) {
-        console.error('Clip webhook (directory, metadata) DB error:', error)
-        return res.status(500).json({ error: 'DB error' })
+        if (error) {
+          console.error('Clip webhook (directory) DB error:', error)
+          return res.status(500).json({ error: 'DB error' })
+        }
+        if (matched && matched.length > 0) {
+          console.log(`Clip webhook procesado (directory): clip_order_id=${clipPaymentRequestId}`)
+          return res.sendStatus(200)
+        }
+        // Sin match: no es una compra del directorio (o ya estaba paid) —
+        // sigue de largo al flujo de suscripción/cv_pack de abajo.
+      } catch (err) {
+        console.error('Clip webhook (directory) error:', err)
+        return res.status(500).json({ error: 'Internal error' })
       }
-      console.log(`Clip webhook procesado (directory, metadata): order_ref=${directoryOrderRef}`)
-      return res.sendStatus(200)
-    } catch (err) {
-      console.error('Clip webhook (directory, metadata) error:', err)
-      return res.status(500).json({ error: 'Internal error' })
     }
   }
 

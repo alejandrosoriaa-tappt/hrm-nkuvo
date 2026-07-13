@@ -98,6 +98,20 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
       console.error('Clip checkout API error:', data)
       return res.status(502).json({ error: 'No pudimos iniciar el pago con Clip. Intenta de nuevo.' })
     }
+    console.log('Clip checkout creado:', JSON.stringify(data))
+
+    // Clip no regresa reference/metadata en el webhook de confirmación (visto
+    // en pruebas reales) — el único id confiable para correlacionar es el
+    // payment_request_id que la propia Clip asigna, documentado como incluido
+    // tanto en esta respuesta de creación como en la notificación del webhook.
+    // Se guarda aquí para que billing.js pueda buscarlo cuando llegue el pago.
+    const clipPaymentRequestId = data.payment_request_id || data.id
+    if (clipPaymentRequestId) {
+      await supabase
+        .from('hrm_directory_purchases')
+        .update({ clip_order_id: clipPaymentRequestId })
+        .eq('order_ref', orderRef)
+    }
 
     res.json({
       checkoutUrl: data.payment_request_url,
