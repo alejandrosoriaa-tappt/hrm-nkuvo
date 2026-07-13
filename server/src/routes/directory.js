@@ -6,14 +6,21 @@
  *      dinámico vía la API de Clip (POST /v2/checkout) y regresa su checkoutUrl.
  *   2. Clip cobra, redirige al comprador a /directorio/gracias?orderRef=...
  *      (redirection_url.success, configurable porque este checkout es de la
- *      API, a diferencia del link hospedado viejo que no soportaba redirect)
- *      y llama a POST /webhook (webhook_url por-checkout, también propio de
- *      la API — no comparte el Postback Webhook único de cuenta que usa
- *      billing.js para los links hospedados de suscripción/cv_pack).
+ *      API, a diferencia del link hospedado viejo que no soportaba redirect).
  *   3. GET  /status/:orderRef → la página de gracias hace polling hasta ver
- *      status='paid' (además del redirect, por si el webhook llega primero).
+ *      status='paid' (el webhook lo procesa billing.js, ver nota abajo).
  *   4. GET  /download/:token → genera el Excel al vuelo y lo marca como
  *      descargado (un solo uso: si ya se descargó, 410 Gone).
+ *
+ * IMPORTANTE sobre el webhook: se probó pasar un `webhook_url` propio en el
+ * body de /v2/checkout (esperando que Clip lo llamara por-transacción) y
+ * Clip lo ignoró por completo — confirmado con una compra real de prueba
+ * que nunca disparó ningún webhook. Clip solo tiene UN Postback Webhook por
+ * cuenta (dashboard.developer.clip.mx → Postback Webhook), y ya está
+ * apuntando a /api/hrm/billing/webhook. Por eso el pago de esta compra lo
+ * procesa billing.js (busca `metadata.orderRef` en el payload), NO este
+ * archivo. Si se necesita cambiar esa URL de cuenta en el futuro, hay que
+ * actualizar billing.js, no agregar otro webhook aquí.
  *
  * Router público: NO usa authMiddleware (a propósito, se monta antes de
  * /api/hrm en index.js para que el router genérico de HRM no lo capture).
@@ -36,13 +43,9 @@ const supabase = createClient(
 // distintas del link de pago hospedado que se edita en el dashboard normal.
 const CLIP_API_KEY = process.env.CLIP_API_KEY
 const CLIP_SECRET_KEY = process.env.CLIP_SECRET_KEY
-// Mismo secret que usa billing.js para su Postback Webhook de cuenta — aquí
-// se reutiliza para verificar el webhook_url propio de este checkout.
-const CLIP_WEBHOOK_SECRET = process.env.CLIP_WEBHOOK_SECRET
 const APP_URL = process.env.APP_URL || 'https://hrm.nkuvo.com'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PAID_STATUSES = ['PAID', 'COMPLETED', 'APPROVED', 'ACTIVE', 'CHECKOUT_COMPLETED']
 
 // ⚠️ PRUEBA TEMPORAL: precio real es $99. Regresar a 99 antes de anunciar/
 // compartir el link públicamente — ver web/src/pages/DirectorioLandingPage.jsx
@@ -86,7 +89,6 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
           error: `${APP_URL}/directorio?status=error`,
           cancel: `${APP_URL}/directorio`,
         },
-        webhook_url: `${APP_URL}/api/hrm/directory/webhook?secret=${CLIP_WEBHOOK_SECRET}`,
         metadata: { orderRef, email },
       }),
     })
@@ -106,50 +108,6 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
   } catch (err) {
     console.error('Clip checkout API error:', err)
     res.status(502).json({ error: 'No pudimos iniciar el pago con Clip. Intenta de nuevo.' })
-  }
-})
-
-// ── POST /webhook ─────────────────────────────────────────────────────────
-// Postback propio de este checkout (webhook_url pasado a /v2/checkout arriba),
-// distinto del Postback Webhook único de cuenta que usa billing.js.
-router.post('/webhook', async (req, res) => {
-  if (CLIP_WEBHOOK_SECRET && req.query.secret !== CLIP_WEBHOOK_SECRET) {
-    console.warn('Clip directory webhook: secret inválido')
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
-
-  const payload = req.body || {}
-  console.log('Clip directory webhook payload:', JSON.stringify(payload))
-
-  const status = (payload.status || payload.payment_status || '').toUpperCase()
-  const paymentId = payload.payment_request_id || payload.id || payload.payment_id
-  const orderRef = payload.metadata?.orderRef
-
-  if (!orderRef) {
-    console.warn('Clip directory webhook: sin orderRef en metadata', payload)
-    return res.sendStatus(200)
-  }
-  if (!PAID_STATUSES.includes(status)) {
-    console.log('Clip directory webhook: status no es de pago exitoso:', status)
-    return res.sendStatus(200)
-  }
-
-  try {
-    const { error } = await supabase
-      .from('hrm_directory_purchases')
-      .update({ status: 'paid', clip_order_id: paymentId, download_token: crypto.randomUUID() })
-      .eq('order_ref', orderRef)
-      .eq('status', 'pending') // idempotente: no regenerar token si Clip reintenta el webhook
-
-    if (error) {
-      console.error('Clip directory webhook DB error:', error)
-      return res.status(500).json({ error: 'DB error' })
-    }
-    console.log(`Clip directory webhook procesado: order_ref=${orderRef}`)
-    res.sendStatus(200)
-  } catch (err) {
-    console.error('Clip directory webhook error:', err)
-    res.status(500).json({ error: 'Internal error' })
   }
 })
 

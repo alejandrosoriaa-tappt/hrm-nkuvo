@@ -163,11 +163,45 @@ router.post('/webhook', async (req, res) => {
   // 2. Extraer campos del payload (Clip puede variar la estructura)
   const reference    = payload.reference      // user_id que pasamos en /checkout
   const status       = payload.status         // PAID, COMPLETED, FAILED, CANCELLED...
-  const paymentId    = payload.payment_id || payload.id
+  const paymentId    = payload.payment_id || payload.id || payload.payment_request_id
   const email        = payload.email || payload.customer_email
   const amount       = payload.amount
   // Para suscripciones recurrentes Clip puede enviar period info
   const periodEnd    = payload.next_payment_date || payload.period_end
+
+  // 2a. Directorio suelto ($99, pago único, comprador sin cuenta) creado vía
+  // la API de checkout (POST /v2/checkout en directory.js): ese endpoint no
+  // manda `reference`, manda `metadata.orderRef`. Se revisa ANTES del
+  // early-return de "sin reference" de abajo, que es solo para el flujo de
+  // links hospedados (suscripción/cv_pack) que sí usan `reference`.
+  const directoryOrderRef = payload.metadata?.orderRef
+  if (directoryOrderRef) {
+    const upperStatus = (status || payload.payment_status || '').toUpperCase()
+    const paidStatuses = ['PAID', 'COMPLETED', 'APPROVED', 'ACTIVE', 'CHECKOUT_COMPLETED']
+
+    if (!paidStatuses.includes(upperStatus)) {
+      console.log('Clip webhook (directory, metadata): status no es de pago exitoso:', status)
+      return res.sendStatus(200)
+    }
+
+    try {
+      const { error } = await supabase
+        .from('hrm_directory_purchases')
+        .update({ status: 'paid', clip_order_id: paymentId, download_token: crypto.randomUUID() })
+        .eq('order_ref', directoryOrderRef)
+        .eq('status', 'pending') // idempotente: no regenerar token si Clip reintenta el webhook
+
+      if (error) {
+        console.error('Clip webhook (directory, metadata) DB error:', error)
+        return res.status(500).json({ error: 'DB error' })
+      }
+      console.log(`Clip webhook procesado (directory, metadata): order_ref=${directoryOrderRef}`)
+      return res.sendStatus(200)
+    } catch (err) {
+      console.error('Clip webhook (directory, metadata) error:', err)
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  }
 
   if (!reference) {
     // Sin referencia no podemos mapear al usuario — logear y responder 200
