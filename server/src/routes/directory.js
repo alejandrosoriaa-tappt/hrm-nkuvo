@@ -212,12 +212,27 @@ router.get('/download/:token', async (req, res) => {
     })
   }
 
-  const { data: recruiters, error: recruitersError } = await supabase
+  const { data: recruitersRaw, error: recruitersError } = await supabase
     .from('hrm_recruiters')
     .select('nombre, industria, sitio_web, email, telefono, ciudad')
     .order('nombre', { ascending: true })
 
   if (recruitersError) return res.status(500).json({ error: recruitersError.message })
+
+  // Orden por completitud de datos (pedido explícito): primero las que
+  // tienen sitio web + teléfono + correo, luego las que solo tienen sitio
+  // web (sin teléfono y/o correo), al final el resto (solo teléfono, sin
+  // sitio web). Dentro de cada grupo se mantiene el orden alfabético.
+  const hasVal = (v) => Boolean(v && String(v).trim())
+  const tierOf = (r) => {
+    const hasWeb = hasVal(r.sitio_web)
+    const hasPhone = hasVal(r.telefono)
+    const hasEmail = hasVal(r.email)
+    if (hasWeb && hasPhone && hasEmail) return 0
+    if (hasWeb) return 1
+    return 2
+  }
+  const recruiters = [...(recruitersRaw || [])].sort((a, b) => tierOf(a) - tierOf(b))
 
   const wb = new ExcelJS.Workbook()
   wb.creator = 'HRM NKUVO'
