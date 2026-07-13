@@ -13,7 +13,8 @@ export default function DirectorioGraciasPage() {
   const pollStartRef = useRef(Date.now())
 
   useEffect(() => {
-    const orderRef = sessionStorage.getItem(ORDER_REF_KEY)
+    const orderRef = new URLSearchParams(window.location.search).get('orderRef')
+      || sessionStorage.getItem(ORDER_REF_KEY)
     if (!orderRef) {
       setState('missing_ref')
       return
