@@ -12,22 +12,33 @@ import { ORDER_REF_KEY } from './directoryOrderRef.js'
 const TOTAL_RECRUITERS = 147
 const UPDATED_LABEL = 'Actualizado julio 2026'
 
-// Mismo extracto (marcas grandes + boutiques) que se usó en el creativo de
-// Instagram, para que la landing tenga el mismo gancho visual. El orden
-// pone primero las marcas más reconocibles a propósito — es la señal de
-// confianza más rápida de leer.
+// Extracto real (10 de 147 filas) — ver db/seed_hrm_recruiters.sql. Datos
+// reales, no inventados: teléfono y correo se muestran enmascarados con
+// maskPhone/maskEmail (abajo) porque son justo lo que se paga por
+// desbloquear — mostrarlos completos en la landing regalaría el producto.
 const PREVIEW_ROWS = [
-  { nombre: 'Adecco Querétaro',           industria: 'Generalista, outsourcing/temporal',        sitio: 'adecco.com.mx',                    ciudad: 'Santiago de Querétaro, Qro.' },
-  { nombre: 'Manpower Querétaro',         industria: 'Generalista, outsourcing/temporal',        sitio: 'manpower.com.mx',                  ciudad: 'Santiago de Querétaro, Qro.' },
-  { nombre: 'Korn Ferry México',          industria: 'Executive search + consultoría',           sitio: 'kornferry.com',                    ciudad: 'CDMX / Monterrey' },
-  { nombre: 'Michael Page México',        industria: 'Selección especializada y ejecutiva',      sitio: 'michaelpage.com.mx',                ciudad: 'CDMX / Monterrey' },
-  { nombre: 'Randstad Querétaro',         industria: 'Generalista, outsourcing/temporal',        sitio: 'randstad.mx',                      ciudad: 'Santiago de Querétaro, Qro.' },
-  { nombre: 'Apoyo Confiable de Personal',industria: 'Generalista ejecutivo/operativo',          sitio: 'apoyoconfiabledepersonal.com.mx',  ciudad: 'CDMX (Roma Norte)' },
-  { nombre: 'Coca Consultores',           industria: 'Generalista RH + fiscal/contable',         sitio: 'cocaconsultores.com',               ciudad: 'CDMX (Álvaro Obregón)' },
-  { nombre: 'Confisa Group',              industria: 'Boutique retained executive search',       sitio: 'confisagroup.com',                  ciudad: 'CDMX (Polanco)' },
-  { nombre: 'Dúo Sinergia',               industria: 'Outsourcing/nómina + generalista',         sitio: 'duosinergia.com',                   ciudad: 'CDMX / Gdl. / Hermosillo' },
-  { nombre: 'Great Team Empresarial',     industria: 'RH generalista para PyMEs',                sitio: 'greatteam.mx',                      ciudad: 'CDMX (Roma Norte)' },
+  { nombre: 'Adecco Querétaro',            industria: 'Generalista, outsourcing/temporal',   sitio: 'adecco.com.mx',                   ciudad: 'Santiago de Querétaro, Qro.', telefono: '442 242 4425',        correo: 'calidadmx@adecco.com' },
+  { nombre: 'Boyden México',               industria: 'Executive search, ejecutivo/C-level', sitio: 'boyden.com/mexico',               ciudad: 'CDMX (Santa Fe)',             telefono: '+52 55 3145 9263',    correo: 'mexico@boyden.com' },
+  { nombre: 'Confisa Group',               industria: 'Boutique retained executive search',  sitio: 'confisagroup.com',                ciudad: 'CDMX (Polanco)',              telefono: '+52 55 1660 8135',    correo: 'info@confisagroup.com' },
+  { nombre: 'Coca Consultores',            industria: 'Generalista RH + fiscal/contable',    sitio: 'cocaconsultores.com',             ciudad: 'CDMX (Álvaro Obregón)',       telefono: '(55) 2454 2174',      correo: 'contacto@cocaconsultores.com' },
+  { nombre: 'Apoyo Confiable de Personal', industria: 'Generalista ejecutivo/operativo',     sitio: 'apoyoconfiabledepersonal.com.mx', ciudad: 'CDMX (Roma Norte)',           telefono: '55 5744 4500',        correo: 'apoyoconfiable@prodigy.net.mx' },
+  { nombre: 'Dúo Sinergia',                industria: 'Outsourcing/nómina + generalista',    sitio: 'duosinergia.com',                 ciudad: 'CDMX / Gdl. / Hermosillo',    telefono: '(55) 5543 0205',      correo: 'hermosillo@duosinergia.com' },
+  { nombre: 'Great Team Empresarial',      industria: 'RH generalista para PyMEs',           sitio: 'greatteam.mx',                    ciudad: 'CDMX (Roma Norte)',           telefono: '55 2489 0216',        correo: 'ventas@greatteam.com.mx' },
+  { nombre: 'Avantgarde (AGHCC)',          industria: 'Executive search + assessment',       sitio: 'aghcc.com',                       ciudad: 'CDMX / Monterrey / Qro.',     telefono: '+52 55 3640 0552',    correo: 'contacto@aghcc.com' },
+  { nombre: 'Axis Consultores',            industria: 'Headhunting + nómina',                sitio: 'axisconsultores.com',             ciudad: 'CDMX (Del Valle)',            telefono: '55 5559 3833',        correo: 'ventas@axisconsultores.com' },
+  { nombre: 'Cosmic',                      industria: 'Outsourcing / staffing alto volumen', sitio: 'cosmic.com.mx',                   ciudad: 'CDMX (Benito Juárez)',        telefono: '800 288 9353',        correo: 'info@grupocosmic.com' },
 ]
+
+// Enmascara datos reales para la preview — visible lo suficiente para dar
+// certeza de que el dato existe y es real, sin ser utilizable sin pagar.
+function maskPhone(phone) {
+  const visible = phone.slice(0, 7)
+  return visible + phone.slice(7).replace(/[^\s/]/g, '•')
+}
+function maskEmail(email) {
+  const [user, domain] = email.split('@')
+  return `${user.slice(0, 1)}${'•'.repeat(Math.max(user.length - 1, 4))}@${domain}`
+}
 
 const FILE_NAME = 'directorio-reclutadoras-hrm-2026-07-12.xlsx'
 
@@ -299,25 +310,39 @@ export default function DirectorioLandingPage() {
           </p>
 
           <div style={{ position: 'relative', border: '1px solid var(--md-outline-variant)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow-2)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1.25rem', background: 'var(--md-surface-container-low)', borderBottom: '1px solid var(--md-outline-variant)' }}>
-              <FileSpreadsheet size={18} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
-              <span style={{ fontSize: '0.8125rem', fontFamily: 'monospace', color: 'var(--md-on-surface-variant)' }}>{FILE_NAME}</span>
+            {/* Barra de marca estilo encabezado de Excel real */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '1rem 1.25rem', background: '#15803D' }}>
+              <img src="/logo-mark.png" alt="" width={30} height={30} style={{ flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: '0.9375rem', fontWeight: 800, color: '#FFFFFF' }}>
+                  Directorio de reclutadoras y agencias verificadas en México
+                </p>
+                <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.85)', marginTop: '0.125rem' }}>
+                  Actualizado: 12 de julio de 2026 · Total de registros: {TOTAL_RECRUITERS}
+                </p>
+              </div>
+            </div>
+            <div style={{ padding: '0.5rem 1.25rem', background: 'var(--md-surface-container-low)', borderBottom: '1px solid var(--md-outline-variant)' }}>
+              <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--md-on-surface-variant)' }}>{FILE_NAME}</span>
             </div>
 
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: '0.9375rem', tableLayout: 'fixed' }}>
+              <table style={{ width: '100%', minWidth: 880, borderCollapse: 'collapse', fontSize: '0.875rem', tableLayout: 'fixed' }}>
                 <colgroup>
-                  <col style={{ width: '30%' }} />
-                  <col style={{ width: '38%' }} />
-                  <col style={{ width: '32%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '19%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '18%' }} />
                 </colgroup>
                 <thead>
                   <tr>
-                    {['Reclutadora', 'Industria', 'Sitio web'].map(h => (
+                    {['Reclutadora', 'Sitio web', 'Teléfono', 'Correo', 'Ciudad', 'Industria'].map(h => (
                       <th
                         key={h}
                         style={{
-                          textAlign: 'left', padding: '0.875rem 1.25rem', fontSize: '0.75rem',
+                          textAlign: 'left', padding: '0.75rem 1rem', fontSize: '0.6875rem',
                           fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
                           color: '#FFFFFF', background: '#16A34A',
                         }}
@@ -330,9 +355,12 @@ export default function DirectorioLandingPage() {
                 <tbody>
                   {PREVIEW_ROWS.map((row, i) => (
                     <tr key={row.nombre} style={{ background: i % 2 === 1 ? 'var(--md-surface-container-low)' : 'transparent' }}>
-                      <td style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--md-outline-variant)', fontWeight: 700, overflowWrap: 'break-word', color: 'var(--md-on-surface)' }}>{row.nombre}</td>
-                      <td style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.industria}</td>
-                      <td style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.sitio}</td>
+                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', fontWeight: 700, overflowWrap: 'break-word', color: 'var(--md-on-surface)' }}>{row.nombre}</td>
+                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-primary)' }}>{row.sitio}</td>
+                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)', fontFamily: 'monospace', fontSize: '0.8125rem' }}>{maskPhone(row.telefono)}</td>
+                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)', fontFamily: 'monospace', fontSize: '0.8125rem' }}>{maskEmail(row.correo)}</td>
+                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.ciudad}</td>
+                      <td style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--md-outline-variant)', overflowWrap: 'break-word', color: 'var(--md-on-surface-variant)' }}>{row.industria}</td>
                     </tr>
                   ))}
                 </tbody>
