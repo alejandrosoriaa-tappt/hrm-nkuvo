@@ -171,18 +171,22 @@ router.post('/webhook', async (req, res) => {
 
   // 2a. Directorio suelto ($99, pago único, comprador sin cuenta) creado vía
   // la API de checkout (POST /v2/checkout en directory.js). Confirmado con
-  // pruebas reales que Clip NO regresa `reference` ni `metadata` en este
-  // webhook para pagos creados vía Checkout API — solo `payment_request_id`
-  // (documentado: "se incluye en la respuesta de creación del checkout Y en
-  // la notificación del Checkout Webhook", sirve para reconciliar). Por eso
-  // directory.js guarda ese id en `clip_order_id` al crear el checkout, y
-  // aquí se correlaciona por ese campo en vez de reference/metadata.
+  // pruebas reales (Railway logs) que Clip manda DOS webhooks distintos por
+  // cada pago de este tipo:
+  //   1. { event_type: 'REQUEST_COMPLETED', id: '<payment_request_id>', ... }
+  //      — el `id` de este SÍ coincide con el payment_request_id que
+  //      directory.js guardó en clip_order_id al crear el checkout, pero no
+  //      trae campo `status` (por eso hay que revisar `event_type` también).
+  //   2. { status: 'PAID', id: '<transaction_id>', ... } — trae `status`
+  //      pero su `id` es el de la transacción, NO el del payment request,
+  //      así que nunca va a hacer match — es inofensivo, solo no encuentra
+  //      fila y sigue de largo (el primer webhook ya marcó todo).
   // Se revisa ANTES del early-return de "sin reference" de abajo, que es
   // solo para el flujo de links hospedados (suscripción/cv_pack).
-  const clipPaymentRequestId = payload.payment_request_id || payload.order_id || paymentId
+  const clipPaymentRequestId = payload.id || payload.payment_request_id || payload.order_id
   if (clipPaymentRequestId) {
-    const upperStatus = (status || payload.payment_status || payload.resource_status || '').toUpperCase()
-    const paidStatuses = ['PAID', 'COMPLETED', 'APPROVED', 'ACTIVE', 'CHECKOUT_COMPLETED']
+    const upperStatus = (status || payload.payment_status || payload.resource_status || payload.event_type || '').toUpperCase()
+    const paidStatuses = ['PAID', 'COMPLETED', 'APPROVED', 'ACTIVE', 'CHECKOUT_COMPLETED', 'REQUEST_COMPLETED']
 
     if (paidStatuses.includes(upperStatus)) {
       try {
