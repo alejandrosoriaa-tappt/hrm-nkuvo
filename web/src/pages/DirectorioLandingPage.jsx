@@ -158,7 +158,7 @@ export default function DirectorioLandingPage() {
       >
         <div style={{ maxWidth: 1120, margin: '0 auto', padding: '2.5rem 1.25rem 3rem' }}>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.625rem', marginBottom: '1.75rem' }}>
-            <LogoMark />
+            <img src="/logo-mark.png" alt="" width={34} height={34} style={{ display: 'block' }} />
             <span style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--md-on-surface)' }}>
               HRM <span style={{ color: 'var(--md-primary)' }}>NKUVO</span>
             </span>
@@ -596,15 +596,6 @@ export default function DirectorioLandingPage() {
         </div>
       </div>
     </div>
-  )
-}
-
-function LogoMark() {
-  return (
-    <svg width="34" height="34" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-      <path d="M4 34 V14 a6 6 0 0 1 12 0 V34 Z" fill="#16A34A" />
-      <path d="M24 34 V14 a6 6 0 0 1 12 0 V34 Z" fill="#34D399" />
-    </svg>
   )
 }
 
