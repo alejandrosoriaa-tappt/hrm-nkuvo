@@ -7,6 +7,16 @@ import { ORDER_REF_KEY } from './directoryOrderRef.js'
 const POLL_INTERVAL_MS = 3000
 const POLL_TIMEOUT_MS = 2 * 60 * 1000
 
+// Dispara el evento Purchase de Meta Pixel una sola vez por compra (marcado
+// por downloadToken en localStorage) — evita contar la misma compra dos
+// veces si el comprador refresca la página o vuelve a entrar.
+export function trackPurchaseOnce(downloadToken) {
+  const key = `hrm_directory_purchase_tracked:${downloadToken}`
+  if (localStorage.getItem(key)) return
+  window.fbq?.('track', 'Purchase', { value: 99, currency: 'MXN' })
+  localStorage.setItem(key, '1')
+}
+
 export default function DirectorioGraciasPage() {
   const [state, setState] = useState('polling') // polling | ready | downloaded | timeout | error | missing_ref
   const [downloadToken, setDownloadToken] = useState(null)
@@ -27,6 +37,7 @@ export default function DirectorioGraciasPage() {
         if (cancelled) return
 
         if (r.data.status === 'paid' && r.data.downloadToken) {
+          trackPurchaseOnce(r.data.downloadToken)
           setDownloadToken(r.data.downloadToken)
           setState('ready')
           return

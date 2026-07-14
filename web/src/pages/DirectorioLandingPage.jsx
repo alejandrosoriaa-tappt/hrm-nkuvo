@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { directoryAPI } from '../lib/api.js'
 import { ORDER_REF_KEY } from './directoryOrderRef.js'
+import { trackPurchaseOnce } from './DirectorioGraciasPage.jsx'
 
 // Actualizar si el directorio crece — ver db/seed_hrm_recruiters.sql
 const TOTAL_RECRUITERS = 147
@@ -105,6 +106,7 @@ export default function DirectorioLandingPage() {
     try {
       const r = await directoryAPI.checkout(email.trim().toLowerCase())
       sessionStorage.setItem(ORDER_REF_KEY, r.data.orderRef)
+      window.fbq?.('track', 'InitiateCheckout', { value: 99, currency: 'MXN' })
       window.location.href = r.data.checkoutUrl
     } catch (err) {
       setError(err.response?.data?.error || err.message)
@@ -119,6 +121,7 @@ export default function DirectorioLandingPage() {
     setLookupResult(null)
     try {
       const r = await directoryAPI.lookup(lookupEmail.trim().toLowerCase())
+      if (r.data.downloadToken) trackPurchaseOnce(r.data.downloadToken)
       setLookupResult(r.data)
     } catch (err) {
       setLookupError(err.response?.data?.error || err.message)
