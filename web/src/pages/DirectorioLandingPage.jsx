@@ -50,6 +50,19 @@ const TRUST_CHIPS = [
   { icon: Ban,        label: 'Sin scraping — dato verificado' },
 ]
 
+const HERO_FEATURES = [
+  { icon: BadgeCheck,          label: '147 reclutadoras verificadas',  text: 'Datos de contacto directos y actualizados.' },
+  { icon: Clock,                label: 'Ahorra semanas de búsqueda',    text: 'Todo lo que necesitas en un solo Excel.' },
+  { icon: ShieldCheck,          label: 'Datos verificados',             text: 'Sin scraping. Información real y lista para usar.' },
+  { icon: Download,             label: 'Descarga inmediata',            text: 'Recibe el Excel al instante después de tu pago.' },
+]
+
+// ⚠️ Precio de lanzamiento REAL: $99 confirmado como precio de julio 2026,
+// sube en agosto (decisión explícita del usuario, no gancho falso). Cuando
+// llegue esa fecha: 1) subir DIRECTORY_PRICE en server/src/routes/directory.js,
+// 2) actualizar el texto del botón de compra, 3) quitar/actualizar este banner.
+const LAUNCH_PRICE_DEADLINE = 'julio 2026'
+
 const RECEIVES = [
   '147 reclutadoras y agencias de colocación',
   'Correo directo de contacto',
@@ -158,111 +171,160 @@ export default function DirectorioLandingPage() {
 
           <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
 
-            {/* Copy + CTA */}
+            {/* Copy + features */}
             <div style={{ flex: '1 1 460px', minWidth: 0 }}>
               <span className="chip chip-primary" style={{ marginBottom: '1rem' }}>
                 <Zap size={12} /> {TOTAL_RECRUITERS} reclutadoras verificadas · {UPDATED_LABEL}
               </span>
-              <h1 style={{ fontSize: 'clamp(2.25rem, 5vw, 3.25rem)', fontWeight: 800, lineHeight: 1.08, color: 'var(--md-on-surface)', letterSpacing: '-0.02em' }}>
-                Encuentra trabajo<br />más rápido.
+              <h1 style={{ fontSize: 'clamp(2rem, 4.5vw, 2.875rem)', fontWeight: 800, lineHeight: 1.12, color: 'var(--md-on-surface)', letterSpacing: '-0.02em' }}>
+                Consigue el correo y teléfono de {TOTAL_RECRUITERS} reclutadoras <span style={{ color: 'var(--md-primary)' }}>antes que otros candidatos.</span>
               </h1>
               <p style={{ fontSize: '1.0625rem', color: 'var(--md-on-surface-variant)', marginTop: '1.125rem', maxWidth: 480, lineHeight: 1.55 }}>
-                Accede al directorio privado de <strong style={{ color: 'var(--md-on-surface)' }}>147 reclutadoras y agencias verificadas</strong> de
-                México. Correo, teléfono y sitio web de contacto — lo que normalmente te tomaría semanas recopilar, aquí está
-                listo para descargar en menos de dos minutos.
+                Deja de esperar a que publiquen vacantes. <strong style={{ color: 'var(--md-on-surface)' }}>Escríbeles directamente hoy mismo</strong> —
+                correo, teléfono y sitio web de cada una, listos para descargar.
               </p>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1.25rem' }}>
-                {SOCIAL_PROOF_COUNT > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.875rem', marginTop: '1.5rem', maxWidth: 480 }}>
+                {HERO_FEATURES.map(({ icon: Icon, label, text }) => (
+                  <div key={label} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 9, background: 'var(--md-primary-container)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <Icon size={16} style={{ color: 'var(--md-primary)' }} />
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--md-on-surface)' }}>{label}</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '0.125rem' }}>{text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1.5rem' }}>
+                {SOCIAL_PROOF_COUNT > 0 ? (
                   <span className="chip chip-primary">
                     <Users size={12} /> {SOCIAL_PROOF_COUNT} candidatos ya lo descargaron
+                  </span>
+                ) : (
+                  <span className="chip chip-primary">
+                    <Users size={12} /> Hecho para candidatos en búsqueda activa en México
                   </span>
                 )}
                 {TRUST_CHIPS.map(({ icon: Icon, label }) => (
                   <span key={label} className="chip chip-success"><Icon size={12} /> {label}</span>
                 ))}
               </div>
-
-              <button
-                type="button"
-                onClick={scrollToBuy}
-                className="btn btn-primary"
-                style={{ marginTop: '1.75rem', padding: '0.875rem 1.75rem', fontSize: '1rem', fontWeight: 700 }}
-              >
-                Descargar ahora <ArrowDown size={16} />
-              </button>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem 1rem', marginTop: '0.75rem' }}>
-                {['Descarga inmediata', 'Pago único', 'Sin mensualidad'].map(t => (
-                  <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
-                    <CheckCircle2 size={12} style={{ color: 'var(--md-primary)' }} /> {t}
-                  </span>
-                ))}
-              </div>
             </div>
 
-            {/* Tarjeta de compra */}
-            <div id="comprar" className="card" style={{ flex: '1 1 380px', maxWidth: 420, scrollMarginTop: '2rem' }}>
-              <p style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--md-on-surface)', marginBottom: '0.25rem' }}>
-                Descarga el directorio
-              </p>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '1.125rem' }}>
-                Deja tu correo y págalo en el momento — el Excel queda listo al instante.
-              </p>
+            {/* Laptop + tarjeta de compra */}
+            <div style={{ flex: '1 1 380px', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <img
+                src="/laptop-mockup.jpg"
+                alt="Laptop mostrando el Excel del directorio de reclutadoras abierto en macOS"
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
 
-              {error && (
-                <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
-                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                  <span>{error}</span>
+              <div id="comprar" className="card" style={{ scrollMarginTop: '2rem' }}>
+                <span className="chip" style={{ background: '#FEF3C7', color: '#92400E', marginBottom: '0.75rem' }}>
+                  🔥 Precio de lanzamiento
+                </span>
+                <p style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--md-on-surface)', lineHeight: 1 }}>
+                  $99 <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--md-on-surface-variant)' }}>MXN</span>
+                </p>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginTop: '0.5rem', marginBottom: '1.125rem' }}>
+                  Deja tu correo y págalo en el momento — el Excel queda listo al instante.
+                </p>
+
+                {error && (
+                  <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                    <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div className="input-group">
+                    <label className="input-label" htmlFor="email">Correo electrónico</label>
+                    <input
+                      id="email"
+                      type="email"
+                      className="input"
+                      placeholder="tu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      required
+                    />
+                    <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
+                      Recibirás el archivo inmediatamente después del pago.
+                    </p>
+                  </div>
+
+                  <button type="submit" className="btn btn-primary w-full" disabled={loading} style={{ padding: '0.875rem', fontSize: '0.9375rem', fontWeight: 700 }}>
+                    {loading ? <span className="spinner spinner-sm" /> : <Download size={17} />}
+                    {loading ? 'Redirigiendo a Clip…' : 'Descargar directorio ahora'}
+                  </button>
+                </form>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem 1rem', marginTop: '0.875rem' }}>
+                  {['Pago único', 'Descarga inmediata', 'Sin mensualidad'].map(t => (
+                    <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
+                      <CheckCircle2 size={12} style={{ color: 'var(--md-primary)' }} /> {t}
+                    </span>
+                  ))}
                 </div>
-              )}
 
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div className="input-group">
-                  <label className="input-label" htmlFor="email">Correo electrónico</label>
-                  <input
-                    id="email"
-                    type="email"
-                    className="input"
-                    placeholder="tu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                    required
-                  />
-                  <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
-                    Recibirás el archivo inmediatamente después del pago.
-                  </p>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.125rem',
+                  padding: '0.75rem 0.875rem', borderRadius: 12, background: 'var(--md-surface-container-low)',
+                }}>
+                  <ClipBadge />
+                  <div>
+                    <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--md-on-surface)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Lock size={13} style={{ color: 'var(--md-primary)' }} />
+                      Pago 100% seguro con Clip
+                    </p>
+                    <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.125rem' }}>
+                      Nunca vemos ni guardamos los datos de tu tarjeta.
+                    </p>
+                  </div>
                 </div>
 
-                <button type="submit" className="btn btn-primary w-full" disabled={loading} style={{ padding: '0.875rem', fontSize: '0.9375rem', fontWeight: 700 }}>
-                  {loading ? <span className="spinner spinner-sm" /> : <Download size={17} />}
-                  {loading ? 'Redirigiendo a Clip…' : 'Descargar ahora — $99 MXN'}
-                </button>
-              </form>
-
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.125rem',
-                padding: '0.75rem 0.875rem', borderRadius: 12, background: 'var(--md-surface-container-low)',
-              }}>
-                <ClipBadge />
-                <div>
-                  <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--md-on-surface)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Lock size={13} style={{ color: 'var(--md-primary)' }} />
-                    Pago 100% seguro con Clip
-                  </p>
-                  <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.125rem' }}>
-                    Nunca vemos ni guardamos los datos de tu tarjeta.
-                  </p>
-                </div>
+                <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.75rem', textAlign: 'center' }}>
+                  Al comprar aceptas nuestro{' '}
+                  <Link to="/privacidad" style={{ color: 'var(--md-primary)', fontWeight: 500 }}>Aviso de Privacidad</Link>.
+                </p>
               </div>
-
-              <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.75rem', textAlign: 'center' }}>
-                Al comprar aceptas nuestro{' '}
-                <Link to="/privacidad" style={{ color: 'var(--md-primary)', fontWeight: 500 }}>Aviso de Privacidad</Link>.
-              </p>
             </div>
           </div>
+
+          {/* Banda oscura de urgencia contextual */}
+          <div style={{
+            marginTop: '2.5rem', padding: '1.125rem 1.5rem', borderRadius: 16,
+            background: 'var(--md-on-surface)', display: 'flex', alignItems: 'center', gap: '0.875rem', flexWrap: 'wrap',
+          }}>
+            <Clock size={20} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
+            <p style={{ fontSize: '0.875rem', color: 'var(--md-surface)', lineHeight: 1.5 }}>
+              Cada día, candidatos envían su CV a estas empresas esperando respuesta.{' '}
+              <strong style={{ color: '#FFFFFF' }}>Tú puedes tener sus datos de contacto en menos de 2 minutos.</strong>
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* Banner de precio de lanzamiento — real, no gancho: el precio sube
+          después de julio 2026 (decisión confirmada). Recordar subir
+          DIRECTORY_PRICE en server/src/routes/directory.js cuando llegue. */}
+      <div style={{
+        background: 'var(--md-primary-container)', padding: '0.75rem 1.25rem',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap',
+        borderBottom: '1px solid var(--md-outline-variant)',
+      }}>
+        <Clock size={14} style={{ color: 'var(--md-on-primary-container)' }} />
+        <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-primary-container)', fontWeight: 600, textAlign: 'center' }}>
+          Precio de lanzamiento válido solo durante {LAUNCH_PRICE_DEADLINE}. Después el precio aumenta.
+        </p>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════
