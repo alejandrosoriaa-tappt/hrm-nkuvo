@@ -155,13 +155,13 @@ export default function DirectorioLandingPage() {
       ══════════════════════════════════════════════════════════════════ */}
       <div
         style={{
-          background: 'var(--md-surface-container-low)',
+          background: '#FFFFFF',
           backgroundImage: 'radial-gradient(var(--md-outline-variant) 1.5px, transparent 1.5px)',
           backgroundSize: '22px 22px',
           borderBottom: '1px solid var(--md-outline-variant)',
         }}
       >
-        <div style={{ maxWidth: 1120, margin: '0 auto', padding: '2.5rem 1.25rem 3rem' }}>
+        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '2.5rem 1.25rem 3rem' }}>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.625rem', marginBottom: '1.75rem' }}>
             <img src="/logo-mark.png" alt="" width={34} height={34} style={{ display: 'block' }} />
             <span style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--md-on-surface)' }}>
@@ -169,10 +169,10 @@ export default function DirectorioLandingPage() {
             </span>
           </div>
 
-          <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
 
             {/* Copy + features */}
-            <div style={{ flex: '1 1 460px', minWidth: 0 }}>
+            <div style={{ flex: '1 1 380px', minWidth: 0 }}>
               <span className="chip chip-primary" style={{ marginBottom: '1rem' }}>
                 <Zap size={12} /> {TOTAL_RECRUITERS} reclutadoras verificadas · {UPDATED_LABEL}
               </span>
@@ -217,14 +217,17 @@ export default function DirectorioLandingPage() {
               </div>
             </div>
 
-            {/* Laptop + tarjeta de compra */}
-            <div style={{ flex: '1 1 380px', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Laptop */}
+            <div style={{ flex: '1.15 1 340px', maxWidth: 480, alignSelf: 'center' }}>
               <img
                 src="/laptop-mockup.jpg"
                 alt="Laptop mostrando el Excel del directorio de reclutadoras abierto en macOS"
                 style={{ width: '100%', height: 'auto', display: 'block' }}
               />
+            </div>
 
+            {/* Tarjeta de compra */}
+            <div style={{ flex: '1 1 300px', maxWidth: 360 }}>
               <div id="comprar" className="card" style={{ scrollMarginTop: '2rem' }}>
                 <span className="chip" style={{ background: '#FEF3C7', color: '#92400E', marginBottom: '0.75rem' }}>
                   🔥 Precio de lanzamiento
