@@ -23,6 +23,10 @@ export default function DirectorioGraciasPage() {
   const pollStartRef = useRef(Date.now())
 
   useEffect(() => {
+    window.fbq?.('track', 'PageView', { content_name: 'directorio_gracias', content_category: 'landing' })
+  }, [])
+
+  useEffect(() => {
     const orderRef = new URLSearchParams(window.location.search).get('orderRef')
       || sessionStorage.getItem(ORDER_REF_KEY)
     if (!orderRef) {

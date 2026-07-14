@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock,
@@ -111,6 +111,14 @@ export default function DirectorioLandingPage() {
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState(null)
   const [lookupResult, setLookupResult] = useState(null) // { downloadToken, alreadyDownloaded }
+
+  // PageView base (index.html) no manda parámetros y no distingue ruta en
+  // una SPA — este evento adicional con content_name sí permite filtrar
+  // "/directorio" específicamente en Events Manager. Duplica el conteo de
+  // PageView (aceptado a propósito: lo que importa es poder filtrar por página).
+  useEffect(() => {
+    window.fbq?.('track', 'PageView', { content_name: 'directorio', content_category: 'landing' })
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
