@@ -19,7 +19,7 @@ export default function CvsPage() {
   const [rewriteResult, setRewriteResult] = useState(null)
   const [rewriteContexto, setRewriteContexto] = useState('')
   const [billing, setBilling] = useState(null)
-  const [cvPackLoading, setCvPackLoading] = useState(false)
+  const [bundleLoading, setBundleLoading] = useState(false)
   const fileRef = useRef(null)
 
   const load = () => {
@@ -34,14 +34,14 @@ export default function CvsPage() {
     hrmAPI.getBillingStatus().then(r => setBilling(r.data)).catch(() => {})
   }, [])
 
-  const handleBuyCvPack = async () => {
-    setCvPackLoading(true)
+  const handleBuyBundle = async () => {
+    setBundleLoading(true)
     try {
-      const r = await hrmAPI.startCvPackCheckout()
+      const r = await hrmAPI.startBundleCheckout()
       window.location.href = r.data.checkoutUrl
     } catch (err) {
       alert(err.response?.data?.error || err.message)
-      setCvPackLoading(false)
+      setBundleLoading(false)
     }
   }
 
@@ -117,7 +117,11 @@ export default function CvsPage() {
       setRewriteResult(r.data)
       load()
     } catch (err) {
-      setRewriteResult({ error: err.response?.data?.error || err.message, locked: err.response?.data?.locked })
+      setRewriteResult({
+        error: err.response?.data?.error || err.message,
+        locked: err.response?.data?.locked,
+        reason: err.response?.data?.reason,
+      })
     } finally {
       setRewriteLoading(false)
     }
@@ -164,12 +168,17 @@ export default function CvsPage() {
             <button
               className="btn btn-primary btn-sm"
               style={{ marginTop: '0.75rem' }}
-              onClick={handleBuyCvPack}
-              disabled={cvPackLoading}
+              onClick={handleBuyBundle}
+              disabled={bundleLoading}
             >
-              {cvPackLoading ? <span className="spinner spinner-sm" /> : <Wand2 size={14} />}
-              {cvPackLoading ? 'Redirigiendo…' : 'Desbloquear todo por $149 (pago único)'}
+              {bundleLoading ? <span className="spinner spinner-sm" /> : <Wand2 size={14} />}
+              {bundleLoading ? 'Redirigiendo…' : 'Desbloquear con el plan $99 / 30 días'}
             </button>
+          )}
+          {billing?.hasCvPack && billing?.atsUsage && (
+            <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '0.75rem' }}>
+              "Sugerir con IA" usados este periodo: {billing.atsUsage.used}/{billing.atsUsage.limit}
+            </p>
           )}
         </div>
       </div>
@@ -354,7 +363,7 @@ export default function CvsPage() {
                           {!r.passed && r.fix === undefined && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: 4, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                               <Lock size={12} style={{ flexShrink: 0 }} />
-                              Cómo arreglarlo — disponible con plan Pro
+                              Cómo arreglarlo — disponible con el plan ($99 / 30 días)
                             </div>
                           )}
                         </div>
@@ -366,10 +375,10 @@ export default function CvsPage() {
                 {!atsResult.isPro && atsResult.results?.some(r => !r.passed) && (
                   <div className="alert alert-info" style={{ flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
                     <p style={{ fontSize: '0.8125rem' }}>
-                      Desbloquea el "cómo arreglarlo" de cada problema con el pack <strong>CV IA + ATS Checker ($149 pago único)</strong> o con Pro ($299/mes).
+                      Desbloquea el "cómo arreglarlo" de cada problema con el plan de <strong>$99 MXN / 30 días</strong>.
                     </p>
                     <Link to="/app/membresia" className="btn btn-primary btn-sm">
-                      <CreditCard size={13} /> Ver planes
+                      <CreditCard size={13} /> Ver plan
                     </Link>
                   </div>
                 )}
@@ -432,10 +441,12 @@ export default function CvsPage() {
                 <div className="alert alert-info" style={{ flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem' }}>
                     <Lock size={14} style={{ flexShrink: 0 }} />
-                    Sugerencias con IA disponibles con el pack CV IA + ATS Checker ($149 pago único) o con Pro ($299/mes).
+                    {rewriteResult.reason === 'usage_limit'
+                      ? rewriteResult.error
+                      : 'Sugerencias con IA disponibles con el plan de $99 MXN / 30 días.'}
                   </div>
                   <Link to="/app/membresia" className="btn btn-primary btn-sm">
-                    <CreditCard size={13} /> Ver planes
+                    <CreditCard size={13} /> Ver plan
                   </Link>
                 </div>
               )}

@@ -37,12 +37,41 @@ supabase db push   # si tienes el CLI instalado y el proyecto vinculado
 | `hrm_subscriptions` | Plan de cada usuario (free / active / cancelled) |
 | `hrm_sessions` | Token activo por usuario (sesión única por dispositivo) |
 | `hrm_unlocked_recruiters` | Tracking de reclutadoras con datos desbloqueados (freemium) |
+| `hrm_usage_events` | Conteo de usos de IA limitados del plan (ATS rewrite, LinkedIn IA — 5x/mes) |
+| `hrm_linkedin_profiles` | Perfil de LinkedIn del usuario (PDF o texto pegado) + score + análisis IA |
+| `hrm_directory_purchases` | Compra suelta ($99, solo correo) — 18 jul 2026: ya no entrega un Excel de un solo uso, activa el plan completo de 30 días sin pedir contraseña (ver nota abajo) |
 
-## Supabase Storage — bucket `cvs`
+## Compra sin contraseña (18 jul 2026)
 
-Crea el bucket **manualmente** en `Storage > New bucket`:
-- Nombre: `cvs`
-- **Privado** (no público) — el backend usa service_role para subir/bajar archivos
+La compra suelta de `/directorio` (solo correo, $99 MXN) ya NO entrega un
+Excel de un solo uso — activa el plan completo de 30 días (directorio +
+ATS Checker + LinkedIn Score) para ese correo, **sin pedirle contraseña al
+comprador**. Técnicamente:
+
+1. El webhook de Clip (`billing.js`) confirma el pago y llama a
+   `grantBundleAccess` (`server/src/lib/bundleAccess.js`), que usa
+   `supabase.auth.admin.generateLink({ type: 'magiclink', email })` — esa
+   llamada **crea la cuenta si no existe** y devuelve un `token_hash` de un
+   solo uso, **sin enviar ningún correo** (la entrega del token la hace nuestra
+   propia página, no Supabase).
+2. La página `/directorio/gracias` recibe ese `token_hash` vía
+   `GET /api/hrm/directory/status/:orderRef` y llama
+   `supabase.auth.verifyOtp({ token_hash, type: 'magiclink' })` en el
+   navegador — eso establece la sesión real del usuario ahí mismo.
+3. Si el token ya expiró (los magic links de Supabase vencen rápido) o el
+   comprador vuelve después, `GET /api/hrm/directory/lookup?email=...`
+   regenera un token fresco con el mismo mecanismo.
+
+**Requisito**: el proyecto de Supabase debe tener el provider de Email
+habilitado para `admin.generateLink` (Authentication → Providers → Email).
+No hace falta SMTP configurado porque no se envía correo — el token se
+entrega dentro de la propia página, no por email.
+
+## Supabase Storage — buckets `cvs` y `linkedin`
+
+Crea los buckets **manualmente** en `Storage > New bucket`:
+- Nombre: `cvs` — **Privado** (no público) — el backend usa service_role para subir/bajar archivos
+- Nombre: `linkedin` — **Privado** — PDFs exportados de LinkedIn ("Más" → "Guardar en PDF")
 
 ## Variables de entorno en Railway
 
@@ -65,11 +94,14 @@ SMTP_SECURE=false
 SMTP_USER=tu@email.com
 SMTP_PASS=tu_app_password      # Gmail: contraseña de aplicación, no la de cuenta
 
-# Sugerir con IA — formato ATS (Pro). Sin esta key el endpoint igual responde
-# con heurísticas del ATS check; con key usa Claude (claude-sonnet-5 por defecto).
+# Sugerir con IA — ATS Checker y LinkedIn Score (plan $99/30 días). Sin esta
+# key, el ATS rewrite responde con heurísticas y LinkedIn IA responde 503;
+# con key usa Claude (claude-sonnet-5 por defecto).
 ANTHROPIC_API_KEY=sk-ant-...
 # Opcional: override de modelo
 # ANTHROPIC_MODEL=claude-sonnet-5
+# Opcional: límite mensual de usos de IA del plan (ATS rewrite / LinkedIn IA). Default 5.
+# AI_USAGE_MONTHLY_LIMIT=5
 
 # Tappt — recordatorios de citas por WhatsApp (mismas keys que nkuvo-crm-backend).
 # notify_to = teléfono del candidato (user_metadata.telefono), no un número fijo.
@@ -79,12 +111,11 @@ TAPPT_API_KEY=
 # Opcional: nombre lógico de plantilla (Tappt mapea a TAPPT_TEMPLATE_PRO)
 # HRM_WA_TEMPLATE=appointment_confirmation
 
-# Clip (billing)
-# Link de suscripción generado desde el dashboard de Clip
-CLIP_SUBSCRIPTION_LINK=https://pago.clip.mx/v2/suscripcion/eaadea41-f533-4902-8fb3-a1836c57b83f
-# Link de PAGO ÚNICO (no suscripción) para el pack "CV IA + ATS Checker" $149 MXN.
-# Crear aparte en el dashboard de Clip como checkout de un solo cobro.
-CLIP_CV_PACK_LINK=https://pago.clip.mx/v2/pago/<crear-en-clip>
+# Clip (billing) — plan único $99 MXN / 30 días (reemplaza el viejo modelo
+# de suscripción $299/mes + pack $149 suelto, descontinuado 18 jul 2026).
+# Link de PAGO ÚNICO (no suscripción) — crear en el dashboard de Clip como
+# checkout de un solo cobro, no como link de suscripción recurrente.
+CLIP_BUNDLE_LINK=https://pago.clip.mx/v2/pago/<crear-en-clip>
 # Secret para proteger el endpoint de webhook (pon cualquier string largo y aleatorio)
 CLIP_WEBHOOK_SECRET=cambia_esto_por_un_secret_aleatorio
 
@@ -99,13 +130,10 @@ PORT=3000
    ```
    https://hrm.nkuvo.com/api/hrm/billing/webhook?secret=<TU_CLIP_WEBHOOK_SECRET>
    ```
-3. Guarda. Clip enviará notificaciones a esa URL cada vez que haya un pago exitoso,
-   renovación, fallo o cancelación.
+3. Guarda. Clip enviará notificaciones a esa URL cada vez que haya un pago exitoso.
 
-> **Cancelaciones manuales**: cuando un usuario solicite cancelar desde la app,
-> recibirás la notificación y debes entrar al panel de Clip >
-> Pagos Recurrentes > encontrar al suscriptor > Eliminar de la suscripción.
-> El equipo de soporte de NKUVO lo atiende vía WhatsApp (wa.me/5215658732336).
+> No hay cobro recurrente que cancelar: el plan es un pago único de 30 días.
+> Al vencer, el usuario simplemente puede pagar de nuevo si quiere seguir.
 ```
 
 ## Datos iniciales de reclutadoras

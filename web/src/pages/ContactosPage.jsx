@@ -167,7 +167,7 @@ export default function ContactosPage() {
           <p style={{ fontSize: '0.875rem' }}>Agrega un reclutador desde el directorio o usa el botón de arriba.</p>
           {atContactLimit ? (
             <Link to="/app/membresia" className="btn btn-primary btn-sm">
-              <Lock size={15} /> Ver plan Pro
+              <Lock size={15} /> Ver plan
             </Link>
           ) : (
             <button className="btn btn-primary btn-sm" onClick={openNew}>

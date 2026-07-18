@@ -2,16 +2,20 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock,
-  Download, Search, Zap, BadgeCheck, Ban, Clock, GraduationCap, Briefcase,
-  UserX, RefreshCw, ArrowDown, MousePointerClick, PackageCheck, Star, Users,
-  Calendar, MessageSquare, ListChecks,
+  Zap, BadgeCheck, Ban, Clock, GraduationCap, Briefcase,
+  UserX, RefreshCw, MousePointerClick, PackageCheck, Star, Users,
+  Search, Sparkles, Linkedin, KeyRound, ArrowRight, Building2,
 } from 'lucide-react'
 import { directoryAPI } from '../lib/api.js'
 import { ORDER_REF_KEY } from './directoryOrderRef.js'
 import { trackPurchaseOnce } from './DirectorioGraciasPage.jsx'
+import supabase from '../lib/supabase.js'
 
-// Actualizar si el directorio crece — ver db/seed_hrm_recruiters.sql
-const TOTAL_RECRUITERS = 147
+// El conteo real se pide a GET /api/hrm/directory/count (siempre refleja
+// hrm_recruiters en vivo, la misma tabla que arma el Excel de descarga).
+// FALLBACK_RECRUITERS es solo lo que se ve antes de que cargue el fetch o si
+// falla — un piso seguro que nunca sobreestima (ver db/seed_hrm_recruiters.sql).
+const FALLBACK_RECRUITERS = 140
 const UPDATED_LABEL = 'Actualizado julio 2026'
 
 // La preview de "así se ve por dentro" es una captura real (excel-preview.jpg)
@@ -27,20 +31,20 @@ const FAQS = [
     a: 'Sí puedes intentarlo — pero arma tú mismo la lista, entra sitio por sitio a sacar correo/teléfono, y verifica cuáles siguen activas y cuáles están registradas ante la STPS. Eso son horas. El directorio ya viene curado, verificado y listo para usarse en el tiempo que tardas en tomarte un café.',
   },
   {
-    q: '¿Cuántas veces puedo descargar el archivo?',
-    a: 'Una sola. El link de descarga se genera al momento de tu pago y se desactiva en cuanto lo usas — guarda el archivo apenas lo descargues.',
+    q: '¿Tengo que crear una cuenta con contraseña?',
+    a: 'No. Pagas con tu correo y tu acceso se activa solo — no hay formulario de registro ni contraseña que recordar. Vuelves a entrar desde el mismo link o con el buscador "¿Ya pagaste?" de abajo.',
   },
   {
     q: '¿Cómo pago?',
     a: 'Con tarjeta, de forma segura a través de Clip. Nosotros nunca vemos ni guardamos los datos de tu tarjeta.',
   },
   {
-    q: '¿El archivo se actualiza después de la compra?',
-    a: 'No — es una fotografía del directorio al momento de tu compra. Si prefieres la versión siempre actualizada más contacto ilimitado en la app, existe el plan Pro por $299/mes.',
+    q: '¿Qué pasa cuando pasan los 30 días?',
+    a: 'Tu acceso se desactiva. Si quieres seguir usando el directorio, el ATS Checker o el LinkedIn Score, pagas de nuevo $99 y se activan otros 30 días — no es una mensualidad automática, tú decides cuándo renovar.',
   },
   {
-    q: 'Pagué pero Clip no me regresó a la descarga, ¿qué hago?',
-    a: 'Usa el buscador "¿Ya pagaste?" más abajo con el correo que usaste al comprar — ahí recuperas tu descarga directamente, sin esperar a nadie.',
+    q: 'Pagué pero no llegué a la pantalla de "ya tienes acceso", ¿qué hago?',
+    a: 'Usa el buscador "¿Ya pagaste?" más abajo con el correo que usaste al comprar — ahí generas tu acceso directamente, sin esperar a nadie.',
   },
 ]
 
@@ -51,45 +55,38 @@ const TRUST_CHIPS = [
 ]
 
 const HERO_FEATURES = [
-  { icon: BadgeCheck,          label: '147 reclutadoras verificadas',  text: 'Datos de contacto directos y actualizados.' },
-  { icon: Clock,                label: 'Ahorra semanas de búsqueda',    text: 'Todo lo que necesitas en un solo Excel.' },
-  { icon: ShieldCheck,          label: 'Datos verificados',             text: 'Sin scraping. Información real y lista para usar.' },
-  { icon: Download,             label: 'Descarga inmediata',            text: 'Recibe el Excel al instante después de tu pago.' },
+  { icon: Building2,   label: `${FALLBACK_RECRUITERS}+ reclutadoras verificadas`, text: 'Contacto ilimitado, directorio completo.' },
+  { icon: Sparkles,    label: 'ATS Checker con IA',                                text: 'Diagnóstico y "cómo arreglarlo" de tu CV.' },
+  { icon: Linkedin,    label: 'LinkedIn Score con IA',                             text: 'Análisis de tu perfil por industria.' },
+  { icon: KeyRound,    label: 'Sin contraseña',                                    text: 'Pagas con tu correo y tu acceso se activa solo.' },
 ]
 
 // ⚠️ Precio de lanzamiento REAL: $99 confirmado como precio de julio 2026,
 // sube en agosto (decisión explícita del usuario, no gancho falso). Cuando
-// llegue esa fecha: 1) subir DIRECTORY_PRICE en server/src/routes/directory.js,
-// 2) actualizar el texto del botón de compra, 3) quitar/actualizar este banner.
+// llegue esa fecha: 1) subir BUNDLE_PRICE en server/src/routes/directory.js
+// y server/src/routes/billing.js, 2) actualizar el texto del botón de
+// compra, 3) quitar/actualizar este banner.
 const LAUNCH_PRICE_DEADLINE = 'julio 2026'
 
 const RECEIVES = [
-  '147 reclutadoras y agencias de colocación',
-  'Correo directo de contacto',
-  'Teléfono directo',
-  'Sitio web oficial',
-  'Ciudad / zona donde operan',
-  'Industria o especialidad',
-  'Descarga inmediata en Excel',
-  'Sin cuenta, sin mensualidad',
+  `Contacto ilimitado con ${FALLBACK_RECRUITERS}+ reclutadoras`,
+  'Correo, teléfono y sitio web de cada una',
+  'ATS Checker con IA — hasta 5 usos',
+  'LinkedIn Score con IA por industria — hasta 5 usos',
+  'Descarga del Excel completo, sin límite de veces',
+  '30 días de acceso, sin contraseña que recordar',
 ]
 
 const STEPS = [
-  { icon: CreditCard,          title: 'Compras',   text: 'Un pago único de $99 MXN, procesado por Clip. Solo necesitas tu correo.' },
-  { icon: Download,            title: 'Descargas', text: 'El Excel con las 147 reclutadoras está listo al instante — una sola descarga.' },
-  { icon: MousePointerClick,   title: 'Contactas', text: 'Escribes directo a quien decide contratar, sin esperar a que una vacante te encuentre.' },
+  { icon: CreditCard,          title: 'Pagas',   text: 'Un pago único de $99 MXN, procesado por Clip. Solo necesitas tu correo.' },
+  { icon: KeyRound,            title: 'Se activa solo', text: 'Sin formulario de registro ni contraseña — tu acceso queda listo al instante.' },
+  { icon: MousePointerClick,   title: 'Usas todo', text: 'Directorio, ATS Checker y LinkedIn Score, durante 30 días.' },
 ]
 
 // ── Prueba social — SOLO datos reales ───────────────────────────────────
 // No fabricar. SOCIAL_PROOF_COUNT y TESTIMONIALS se quedan vacíos/en 0
 // hasta que existan compras y testimonios reales; los componentes de abajo
 // (chip de contador, sección de reseñas) se auto-ocultan mientras tanto.
-//
-// Para activar el contador: cambiar SOCIAL_PROOF_COUNT por el número real
-// de descargas confirmadas (select count(*) from hrm_directory_purchases
-// where status='paid' — ver server/src/routes/directory.js).
-// Para activar reseñas: pedirle a un comprador real su OK por WhatsApp para
-// citarlo, y agregar un objeto a TESTIMONIALS con su nombre/contexto real.
 const SOCIAL_PROOF_COUNT = 0
 const TESTIMONIALS = [
   // { name: 'Nombre real', context: 'Contexto real (ej. "Contadora, CDMX")', quote: 'Cita real, con permiso.' },
@@ -108,9 +105,23 @@ export default function DirectorioLandingPage() {
   const [error, setError] = useState(null)
 
   const [lookupEmail, setLookupEmail] = useState('')
-  const [lookupLoading, setLookupLoading] = useState(false)
+  const [lookupState, setLookupState] = useState('idle') // idle | loading | signing_in | error
   const [lookupError, setLookupError] = useState(null)
-  const [lookupResult, setLookupResult] = useState(null) // { downloadToken, alreadyDownloaded }
+
+  // Conteo real desde la BD (GET /api/hrm/directory/count) — nunca se queda
+  // fijo en el código. rawCount es el número exacto (para aritmética como
+  // "+N reclutadoras más"); TOTAL_RECRUITERS es un piso redondeado a la
+  // decena hacia abajo ("140+", "150+"…) para el copy de marketing, así no
+  // hay que tocar código cada vez que el directorio crece.
+  const [rawCount, setRawCount] = useState(null)
+  const excelCount = rawCount ?? FALLBACK_RECRUITERS // número exacto, para aritmética
+  const TOTAL_RECRUITERS = Math.max(FALLBACK_RECRUITERS, Math.floor(excelCount / 10) * 10) // piso redondeado, para marketing
+
+  useEffect(() => {
+    directoryAPI.count()
+      .then(r => setRawCount(r.data?.count ?? null))
+      .catch(() => {}) // fallo silencioso: se queda en FALLBACK_RECRUITERS
+  }, [])
 
   // PageView base (index.html) no manda parámetros y no distingue ruta en
   // una SPA — este evento adicional con content_name sí permite filtrar
@@ -135,19 +146,26 @@ export default function DirectorioLandingPage() {
     }
   }
 
+  // "¿Ya pagaste?" — genera un magic link fresco para el correo y loguea de
+  // una vez, sin pasar por /directorio/gracias ni pedir contraseña.
   const handleLookup = async (e) => {
     e.preventDefault()
-    setLookupLoading(true)
+    setLookupState('loading')
     setLookupError(null)
-    setLookupResult(null)
     try {
-      const r = await directoryAPI.lookup(lookupEmail.trim().toLowerCase())
-      if (r.data.downloadToken) trackPurchaseOnce(r.data.downloadToken)
-      setLookupResult(r.data)
+      const normalizedEmail = lookupEmail.trim().toLowerCase()
+      const r = await directoryAPI.lookup(normalizedEmail)
+      setLookupState('signing_in')
+      const { error: otpError } = await supabase.auth.verifyOtp({
+        token_hash: r.data.tokenHash,
+        type: r.data.tokenType || 'magiclink',
+      })
+      if (otpError) throw otpError
+      trackPurchaseOnce(normalizedEmail)
+      window.location.href = '/app'
     } catch (err) {
       setLookupError(err.response?.data?.error || err.message)
-    } finally {
-      setLookupLoading(false)
+      setLookupState('idle')
     }
   }
 
@@ -182,14 +200,14 @@ export default function DirectorioLandingPage() {
             {/* Copy + features */}
             <div style={{ flex: '1 1 380px', minWidth: 0 }}>
               <span className="chip chip-primary" style={{ marginBottom: '1rem' }}>
-                <Zap size={12} /> {TOTAL_RECRUITERS} reclutadoras verificadas · {UPDATED_LABEL}
+                <Zap size={12} /> {TOTAL_RECRUITERS}+ reclutadoras verificadas · {UPDATED_LABEL}
               </span>
               <h1 style={{ fontSize: 'clamp(2rem, 4.5vw, 2.875rem)', fontWeight: 800, lineHeight: 1.12, color: 'var(--md-on-surface)', letterSpacing: '-0.02em' }}>
-                Consigue el correo y teléfono de {TOTAL_RECRUITERS} reclutadoras <span style={{ color: 'var(--md-primary)' }}>antes que otros candidatos.</span>
+                $99 MXN te dan <span style={{ color: 'var(--md-primary)' }}>30 días de acceso a todo</span> para conseguir tu siguiente empleo.
               </h1>
               <p style={{ fontSize: '1.0625rem', color: 'var(--md-on-surface-variant)', marginTop: '1.125rem', maxWidth: 480, lineHeight: 1.55 }}>
-                Deja de esperar a que publiquen vacantes. <strong style={{ color: 'var(--md-on-surface)' }}>Escríbeles directamente hoy mismo</strong> —
-                correo, teléfono y sitio web de cada una, listos para descargar.
+                Directorio completo de reclutadoras, ATS Checker con IA y LinkedIn Score con IA —{' '}
+                <strong style={{ color: 'var(--md-on-surface)' }}>todo con un solo pago, sin crear una cuenta con contraseña.</strong>
               </p>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.875rem', marginTop: '1.5rem', maxWidth: 480 }}>
@@ -212,7 +230,7 @@ export default function DirectorioLandingPage() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1.5rem' }}>
                 {SOCIAL_PROOF_COUNT > 0 ? (
                   <span className="chip chip-primary">
-                    <Users size={12} /> {SOCIAL_PROOF_COUNT} candidatos ya lo descargaron
+                    <Users size={12} /> {SOCIAL_PROOF_COUNT} candidatos ya lo activaron
                   </span>
                 ) : (
                   <span className="chip chip-primary">
@@ -241,10 +259,10 @@ export default function DirectorioLandingPage() {
                   🔥 Precio de lanzamiento
                 </span>
                 <p style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--md-on-surface)', lineHeight: 1 }}>
-                  $99 <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--md-on-surface-variant)' }}>MXN</span>
+                  $99 <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--md-on-surface-variant)' }}>MXN / 30 días</span>
                 </p>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginTop: '0.5rem', marginBottom: '1.125rem' }}>
-                  Deja tu correo y págalo en el momento — el Excel queda listo al instante.
+                  Deja tu correo y págalo en el momento — tu acceso se activa solo, sin contraseña.
                 </p>
 
                 {error && (
@@ -268,18 +286,18 @@ export default function DirectorioLandingPage() {
                       required
                     />
                     <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
-                      Recibirás el archivo inmediatamente después del pago.
+                      Tu acceso se activa con este correo inmediatamente después del pago.
                     </p>
                   </div>
 
                   <button type="submit" className="btn btn-primary w-full" disabled={loading} style={{ padding: '0.875rem', fontSize: '0.9375rem', fontWeight: 700 }}>
-                    {loading ? <span className="spinner spinner-sm" /> : <Download size={17} />}
-                    {loading ? 'Redirigiendo a Clip…' : 'Descargar directorio ahora'}
+                    {loading ? <span className="spinner spinner-sm" /> : <ArrowRight size={17} />}
+                    {loading ? 'Redirigiendo a Clip…' : 'Obtener acceso ahora'}
                   </button>
                 </form>
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem 1rem', marginTop: '0.875rem' }}>
-                  {['Pago único', 'Descarga inmediata', 'Sin mensualidad'].map(t => (
+                  {['Pago único', 'Sin contraseña', 'Activación inmediata'].map(t => (
                     <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
                       <CheckCircle2 size={12} style={{ color: 'var(--md-primary)' }} /> {t}
                     </span>
@@ -326,7 +344,8 @@ export default function DirectorioLandingPage() {
 
       {/* Banner de precio de lanzamiento — real, no gancho: el precio sube
           después de julio 2026 (decisión confirmada). Recordar subir
-          DIRECTORY_PRICE en server/src/routes/directory.js cuando llegue. */}
+          BUNDLE_PRICE en server/src/routes/directory.js y billing.js cuando
+          llegue. */}
       <div style={{
         background: 'var(--md-primary-container)', padding: '0.75rem 1.25rem',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap',
@@ -348,7 +367,7 @@ export default function DirectorioLandingPage() {
         }}>
           <span style={{ fontWeight: 600, color: 'var(--md-on-surface)' }}>Ya están en el directorio: </span>
           Adecco · Manpower · Randstad · Korn Ferry · Michael Page · Boyden · Confisa Group · Coca Consultores ·{' '}
-          <span style={{ fontWeight: 600, color: 'var(--md-primary)' }}>+139 más</span>
+          <span style={{ fontWeight: 600, color: 'var(--md-primary)' }}>+{Math.max(0, excelCount - 8)} más</span>
         </p>
       </div>
 
@@ -360,15 +379,15 @@ export default function DirectorioLandingPage() {
         <div style={{ marginTop: '3.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--md-on-surface)' }}>
-              Así se ve por dentro
+              Así se ve el directorio por dentro
             </h2>
             <span style={{ flex: 1 }} />
             <span className="chip chip-success"><CheckCircle2 size={12} /> {UPDATED_LABEL}</span>
-            <span className="chip chip-success">{TOTAL_RECRUITERS} registros</span>
+            <span className="chip chip-success">{TOTAL_RECRUITERS}+ registros</span>
           </div>
           <p style={{ fontSize: '0.875rem', color: 'var(--md-on-surface-variant)', marginBottom: '1.25rem', maxWidth: 640 }}>
-            Captura real de 10 de las {TOTAL_RECRUITERS} filas (correo y teléfono difuminados a propósito).
-            El Excel completo trae correo, teléfono, sitio web, ciudad e industria de cada una.
+            Captura real de 10 de las {excelCount} filas (correo y teléfono difuminados a propósito).
+            Con tu acceso puedes descargarlo completo en Excel las veces que quieras durante tus 30 días.
           </p>
 
           <div style={{ position: 'relative', border: '1px solid var(--md-outline-variant)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow-2)' }}>
@@ -384,7 +403,7 @@ export default function DirectorioLandingPage() {
               display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '1rem',
             }}>
               <span className="chip chip-primary" style={{ fontSize: '0.8125rem', padding: '0.5rem 1.125rem', boxShadow: 'var(--shadow-2)' }}>
-                + {TOTAL_RECRUITERS - PREVIEW_ROWS_COUNT} reclutadoras más en tu descarga
+                + {excelCount - PREVIEW_ROWS_COUNT} reclutadoras más en tu acceso
               </span>
             </div>
           </div>
@@ -395,7 +414,7 @@ export default function DirectorioLandingPage() {
         ══════════════════════════════════════════════════════════════════ */}
         <div className="card" style={{ marginTop: '3.5rem', padding: '2rem', background: 'var(--md-primary-container)', border: 'none' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--md-on-primary-container)', marginBottom: '1.25rem', textAlign: 'center' }}>
-            Qué recibes exactamente
+            Qué recibes exactamente por $99
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '0.75rem 1.5rem', maxWidth: 760, marginInline: 'auto' }}>
             {RECEIVES.map(item => (
@@ -412,18 +431,18 @@ export default function DirectorioLandingPage() {
         ══════════════════════════════════════════════════════════════════ */}
         <div style={{ marginTop: '3.5rem' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--md-on-surface)', marginBottom: '1.5rem', textAlign: 'center' }}>
-            El producto no es el Excel. Es el tiempo que te ahorra.
+            No es solo el directorio. Es todo lo que necesitas para buscar empleo.
           </h2>
           <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
             <div className="card" style={{ flex: '1 1 300px' }}>
               <p style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.875rem' }}>
-                Buscarlo tú mismo
+                Hacerlo todo por tu cuenta
               </p>
               {[
                 'Googlear reclutadoras una por una',
-                'Entrar a cada sitio a sacar correo y teléfono',
-                'Revisar cuáles siguen activas',
-                'Verificar cuáles están registradas ante la STPS',
+                'Adivinar si tu CV pasa los filtros automáticos',
+                'Adivinar si tu LinkedIn está bien armado',
+                'Crear cuentas distintas con contraseñas distintas',
                 'Horas de trabajo antes de mandar el primer correo',
               ].map(t => (
                 <div key={t} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '0.625rem' }}>
@@ -434,13 +453,13 @@ export default function DirectorioLandingPage() {
             </div>
             <div className="card" style={{ flex: '1 1 300px', borderColor: 'var(--md-primary)', borderWidth: 2 }}>
               <p style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--md-primary)', marginBottom: '0.875rem' }}>
-                Comprar el directorio
+                Con el plan de HRM NKUVO
               </p>
               {[
-                '147 reclutadoras ya verificadas y curadas',
-                'Correo, teléfono y sitio de cada una, listos',
-                'Registradas ante la STPS',
-                'Excel descargado en menos de 2 minutos',
+                `${FALLBACK_RECRUITERS}+ reclutadoras ya verificadas y curadas`,
+                'ATS Checker con IA te dice qué arreglar de tu CV',
+                'LinkedIn Score con IA te dice qué mejorar de tu perfil',
+                'Un solo pago, sin contraseña que recordar',
                 'Empiezas a contactar hoy, no en dos semanas',
               ].map(t => (
                 <div key={t} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '0.625rem' }}>
@@ -483,7 +502,7 @@ export default function DirectorioLandingPage() {
         ══════════════════════════════════════════════════════════════════ */}
         <div style={{ marginTop: '3.5rem' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--md-on-surface)', marginBottom: '1.5rem', textAlign: 'center' }}>
-            ¿Para quién es este directorio?
+            ¿Para quién es este plan?
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
             {PERSONAS.map(({ icon: Icon, label }) => (
@@ -505,19 +524,20 @@ export default function DirectorioLandingPage() {
             Garantía de 3 días
           </p>
           <p style={{ fontSize: '0.875rem', color: 'var(--md-on-surface-variant)', lineHeight: 1.6 }}>
-            Si el directorio no te sirve, escríbenos por WhatsApp dentro de los primeros 3 días
-            después de tu compra y te devolvemos tu dinero — sin preguntas. Y si el archivo no
-            te llegó, lo recuperas con el buscador "¿Ya pagaste?" de abajo.
+            Si el plan no te sirve, escríbenos por WhatsApp dentro de los primeros 3 días
+            después de tu compra y te devolvemos tu dinero — sin preguntas. Y si no llegaste
+            a la pantalla de "ya tienes acceso", lo recuperas con el buscador "¿Ya pagaste?" de abajo.
           </p>
         </div>
 
-        {/* ── Recuperar compra (Clip no siempre regresa al sitio tras pagar) ── */}
+        {/* ── Recuperar acceso (Clip no siempre regresa al sitio tras pagar) ── */}
         <div className="card" style={{ marginTop: '1.5rem', maxWidth: 480, marginInline: 'auto' }}>
           <p style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--md-on-surface)', marginBottom: '0.25rem' }}>
             ¿Ya pagaste?
           </p>
           <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.875rem' }}>
-            Si Clip no te regresó a la descarga, busca tu compra con el correo que usaste al pagar.
+            Si Clip no te regresó a la pantalla de acceso, o tu link ya expiró, entra con el
+            correo que usaste al pagar — sin contraseña.
           </p>
 
           <form onSubmit={handleLookup} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -530,9 +550,9 @@ export default function DirectorioLandingPage() {
               required
               style={{ flex: '1 1 200px' }}
             />
-            <button type="submit" className="btn btn-outline" disabled={lookupLoading}>
-              {lookupLoading ? <span className="spinner spinner-sm" /> : <Search size={15} />}
-              Buscar
+            <button type="submit" className="btn btn-outline" disabled={lookupState !== 'idle'}>
+              {lookupState !== 'idle' ? <span className="spinner spinner-sm" /> : <Search size={15} />}
+              {lookupState === 'signing_in' ? 'Entrando…' : lookupState === 'loading' ? 'Buscando…' : 'Entrar'}
             </button>
           </form>
 
@@ -542,32 +562,13 @@ export default function DirectorioLandingPage() {
               <span>{lookupError}</span>
             </div>
           )}
-
-          {lookupResult?.downloadToken && (
-            <a
-              href={directoryAPI.downloadUrl(lookupResult.downloadToken)}
-              className="btn btn-primary w-full"
-              style={{ marginTop: '0.875rem' }}
-            >
-              <Download size={16} /> Descargar directorio (Excel)
-            </a>
-          )}
-
-          {lookupResult?.alreadyDownloaded && (
-            <div className="alert alert-info" style={{ marginTop: '0.875rem' }}>
-              Esta compra ya se descargó. Cada compra incluye una sola descarga — si necesitas ayuda,{' '}
-              <a href="https://wa.me/5215658732336" target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>
-                escríbenos por WhatsApp
-              </a>.
-            </div>
-          )}
         </div>
 
         {/* ── Reseñas — solo se renderiza si TESTIMONIALS trae datos reales ── */}
         {TESTIMONIALS.length > 0 && (
           <div style={{ marginTop: '3rem', maxWidth: 900, marginInline: 'auto' }}>
             <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--md-on-surface)', marginBottom: '1rem', textAlign: 'center' }}>
-              Lo que dicen quienes ya lo compraron
+              Lo que dicen quienes ya lo activaron
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
               {TESTIMONIALS.map(t => (
@@ -607,10 +608,10 @@ export default function DirectorioLandingPage() {
         {/* ── CTA final ── */}
         <div style={{ marginTop: '3.5rem', textAlign: 'center', padding: '2.5rem 1.5rem', background: 'var(--md-primary)', borderRadius: 24 }}>
           <p style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--md-on-primary)', marginBottom: '0.5rem' }}>
-            147 reclutadoras te están esperando.
+            {TOTAL_RECRUITERS}+ reclutadoras, ATS Checker y LinkedIn Score te están esperando.
           </p>
           <p style={{ fontSize: '0.9375rem', color: 'var(--md-on-primary)', opacity: 0.9, marginBottom: '1.5rem' }}>
-            Un pago único de $99 MXN. Descarga inmediata.
+            Un pago único de $99 MXN. 30 días de acceso. Sin contraseña.
           </p>
           <button
             type="button"
@@ -618,40 +619,14 @@ export default function DirectorioLandingPage() {
             className="btn"
             style={{ background: 'var(--md-on-primary)', color: 'var(--md-primary)', padding: '0.875rem 1.75rem', fontSize: '0.9375rem', fontWeight: 700 }}
           >
-            <Download size={17} /> Descargar ahora
+            <ArrowRight size={17} /> Obtener acceso ahora
           </button>
-        </div>
-
-        {/* ── Cross-sell a HRM Pro — el directorio es la puerta de entrada,
-            no el negocio en sí. Solo features que YA existen en la app. ── */}
-        <div className="card" style={{ marginTop: '2rem', maxWidth: 640, marginInline: 'auto', padding: '1.75rem' }}>
-          <p style={{ fontWeight: 800, fontSize: '1.0625rem', color: 'var(--md-on-surface)', marginBottom: '0.375rem' }}>
-            ¿Y ahora qué hago con estos contactos?
-          </p>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '1rem' }}>
-            El directorio es solo el primer paso. HRM Pro te ayuda a llevar el seguimiento de cada contacto:
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.625rem', marginBottom: '1.25rem' }}>
-            {[
-              { icon: ListChecks,     text: 'Guarda y da seguimiento a cada reclutadora que contactaste' },
-              { icon: MessageSquare,  text: 'Plantillas de mensajes listas para copiar y pegar' },
-              { icon: Calendar,       text: 'Agenda tus entrevistas y citas de seguimiento' },
-            ].map(({ icon: Icon, text }) => (
-              <div key={text} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                <Icon size={15} style={{ color: 'var(--md-primary)', flexShrink: 0, marginTop: 2 }} />
-                <span style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface)' }}>{text}</span>
-              </div>
-            ))}
-          </div>
-          <Link to="/signup" className="btn btn-outline" style={{ fontSize: '0.8125rem' }}>
-            Conoce HRM Pro — $299/mes
-          </Link>
         </div>
 
         {/* ── Footer ── */}
         <div style={{ textAlign: 'center', marginTop: '2rem', paddingBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <p style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
-            <ShieldCheck size={13} /> Directorio HRM NKUVO — hrm.nkuvo.com
+            <ShieldCheck size={13} /> HRM NKUVO — hrm.nkuvo.com
           </p>
         </div>
       </div>

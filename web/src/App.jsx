@@ -7,6 +7,7 @@ import ContactosPage from './pages/ContactosPage.jsx'
 import CalendarioPage from './pages/CalendarioPage.jsx'
 import ReclutadorasPage from './pages/ReclutadorasPage.jsx'
 import CvsPage from './pages/CvsPage.jsx'
+import LinkedInPage from './pages/LinkedInPage.jsx'
 import PlantillasPage from './pages/PlantillasPage.jsx'
 import OportunidadesPage from './pages/OportunidadesPage.jsx'
 import NotasPage from './pages/NotasPage.jsx'
@@ -17,6 +18,7 @@ import MembresiaPage from './pages/MembresiaPage.jsx'
 import DirectorioLandingPage from './pages/DirectorioLandingPage.jsx'
 import DirectorioGraciasPage from './pages/DirectorioGraciasPage.jsx'
 import PrivacidadPage from './pages/PrivacidadPage.jsx'
+import MetodologiaLinkedInPage from './pages/MetodologiaLinkedInPage.jsx'
 
 export default function App() {
   return (
@@ -30,6 +32,7 @@ export default function App() {
         <Route path="/directorio" element={<DirectorioLandingPage />} />
         <Route path="/directorio/gracias" element={<DirectorioGraciasPage />} />
         <Route path="/privacidad" element={<PrivacidadPage />} />
+        <Route path="/metodologia-linkedin" element={<MetodologiaLinkedInPage />} />
 
         {/* Protegidas — Layout hace el guard de sesión */}
         <Route path="/app" element={<Layout />}>
@@ -38,6 +41,7 @@ export default function App() {
           <Route path="calendario"      element={<CalendarioPage />} />
           <Route path="reclutadoras"    element={<ReclutadorasPage />} />
           <Route path="cvs"             element={<CvsPage />} />
+          <Route path="linkedin"        element={<LinkedInPage />} />
           <Route path="plantillas"      element={<PlantillasPage />} />
           <Route path="oportunidades"   element={<OportunidadesPage />} />
           <Route path="notas"           element={<NotasPage />} />

@@ -15,15 +15,28 @@ function isDemoEmail(email) {
   return Boolean(email && demoEmails.includes(email.toLowerCase()))
 }
 
+/** Máximo de usos mensuales de funciones de IA limitadas del plan (ATS rewrite, LinkedIn IA). */
+export const AI_USAGE_MONTHLY_LIMIT = Number(process.env.AI_USAGE_MONTHLY_LIMIT) || 5
+
+/**
+ * true si el usuario tiene el plan activo ($99/30 días) vigente.
+ * A diferencia del viejo modelo de suscripción recurrente, aquí SIEMPRE se
+ * valida current_period_end porque el pago es único (sin webhook de
+ * renovación automática que reponga el status) — quien no vuelve a pagar
+ * queda free al vencer.
+ */
 export async function isProUser(supabase, userId, email) {
   if (isDemoEmail(email)) return true
 
   const { data: sub } = await supabase
     .from('hrm_subscriptions')
-    .select('status')
+    .select('status, current_period_end')
     .eq('user_id', userId)
     .maybeSingle()
-  return sub?.status === 'active'
+
+  if (sub?.status !== 'active') return false
+  if (sub.current_period_end && new Date(sub.current_period_end) < new Date()) return false
+  return true
 }
 
 /** Límite free configurable (env FREE_CONTACT_LIMIT o default 5). */
@@ -32,9 +45,11 @@ export function getFreeContactLimit() {
 }
 
 /**
- * Acceso al pack "CV IA + ATS Checker" ($149 MXN, pago único): Pro/demo lo
- * incluyen; free lo obtiene comprando el pack (hrm_subscriptions.cv_pack_purchased_at).
- * Gating de ATS-fix y reescritura con IA usa esto en vez de isProUser a secas.
+ * Acceso a funciones de IA del plan (ATS rewrite, LinkedIn IA, "cómo
+ * arreglarlo" del ATS check). El plan activo ($99/30 días) lo incluye.
+ * También reconoce compras del viejo pack "CV IA + ATS Checker" ($149,
+ * descontinuado 18 jul 2026) para no quitarle el acceso a quien ya pagó:
+ * ese pack era de por vida, así que sigue vigente aunque ya no se venda.
  */
 export async function hasCvPackAccess(supabase, userId, email) {
   if (await isProUser(supabase, userId, email)) return true
@@ -45,6 +60,48 @@ export async function hasCvPackAccess(supabase, userId, email) {
     .eq('user_id', userId)
     .maybeSingle()
   return Boolean(sub?.cv_pack_purchased_at)
+}
+
+/**
+ * Ventana de conteo del uso de IA del periodo actual (current_period_start).
+ * null si el usuario no tiene plan activo (nada que contar).
+ */
+async function getPeriodStart(supabase, userId, email) {
+  if (isDemoEmail(email)) return new Date(0).toISOString() // demo: nunca limitado
+  const { data: sub } = await supabase
+    .from('hrm_subscriptions')
+    .select('current_period_start')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return sub?.current_period_start || null
+}
+
+/**
+ * Estado de uso de una función de IA limitada (kind: 'ats_rewrite' | 'linkedin_ai')
+ * dentro del periodo de 30 días vigente.
+ * @returns {{ allowed: boolean, used: number, limit: number }}
+ */
+export async function checkUsageLimit(supabase, { userId, email, kind }) {
+  if (isDemoEmail(email)) return { allowed: true, used: 0, limit: AI_USAGE_MONTHLY_LIMIT }
+
+  const periodStart = await getPeriodStart(supabase, userId, email)
+  if (!periodStart) return { allowed: false, used: 0, limit: AI_USAGE_MONTHLY_LIMIT }
+
+  const { count, error } = await supabase
+    .from('hrm_usage_events')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('kind', kind)
+    .gte('created_at', periodStart)
+
+  if (error) throw new Error(error.message)
+  const used = count || 0
+  return { allowed: used < AI_USAGE_MONTHLY_LIMIT, used, limit: AI_USAGE_MONTHLY_LIMIT }
+}
+
+/** Registra un uso de función de IA limitada. Llamar solo tras un uso exitoso. */
+export async function recordUsageEvent(supabase, userId, kind) {
+  await supabase.from('hrm_usage_events').insert({ user_id: userId, kind })
 }
 
 /**

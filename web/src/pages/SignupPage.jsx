@@ -25,9 +25,7 @@ export default function SignupPage() {
     }
     setPlanLoading(which)
     try {
-      const r = which === 'pro'
-        ? await hrmAPI.startCheckout()
-        : await hrmAPI.startCvPackCheckout()
+      const r = await hrmAPI.startBundleCheckout()
       window.location.href = r.data.checkoutUrl
     } catch (err) {
       setPlanError(err.response?.data?.error || err.message)
@@ -78,28 +76,19 @@ export default function SignupPage() {
             <PlanCard
               title="Gratis"
               price="$0"
-              features={['Contacto desbloqueado para los primeros 5 reclutadores', 'ATS Checker: score y diagnóstico']}
+              features={['Contacto desbloqueado para los primeros 5 reclutadores', 'ATS Checker y LinkedIn Score: score y diagnóstico']}
               cta="Continuar gratis"
               loading={planLoading === 'free'}
               onClick={() => goToPlan('free')}
               variant="outline"
             />
             <PlanCard
-              title="CV IA + ATS Checker"
-              price="$149 MXN pago único"
-              features={['Cómo arreglar cada problema del ATS Checker', 'Sugerencias de reescritura de tu CV con IA', 'No es mensualidad, no vence']}
-              cta="Comprar por $149"
-              loading={planLoading === 'cv_pack'}
-              onClick={() => goToPlan('cv_pack')}
-              variant="outline"
-            />
-            <PlanCard
-              title="Pro"
-              price="$299 MXN/mes"
-              features={['Contacto ilimitado con todos los reclutadores', 'Incluye CV IA + ATS Checker', 'Cancela cuando quieras']}
-              cta="Suscribirme por $299/mes"
-              loading={planLoading === 'pro'}
-              onClick={() => goToPlan('pro')}
+              title="Plan completo"
+              price="$99 MXN / 30 días"
+              features={['Contacto ilimitado con todos los reclutadores', 'ATS Checker con IA — hasta 5 usos', 'LinkedIn Score con IA por industria — hasta 5 usos', 'Pago único: pagas de nuevo solo si quieres seguir']}
+              cta="Obtener el plan por $99"
+              loading={planLoading === 'bundle'}
+              onClick={() => goToPlan('bundle')}
               variant="primary"
               highlight
             />

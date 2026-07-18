@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, ExternalLink, Plus, MessageCircle, Globe, Phone, Mail, CreditCard, Lock } from 'lucide-react'
+import { Search, ExternalLink, Plus, MessageCircle, Globe, Phone, Mail, CreditCard, Lock, Download } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 export default function ReclutadorasPage() {
@@ -13,6 +13,7 @@ export default function ReclutadorasPage() {
   const [sub, setSub] = useState(null)
   const [quota, setQuota] = useState(null)
   const [addingContact, setAddingContact] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   const refreshQuota = () =>
     hrmAPI.getContactQuota()
@@ -81,6 +82,26 @@ export default function ReclutadorasPage() {
   // Tope de filas en hrm_contacts (dual check del backend)
   const atContactLimit = Boolean(quota && !quota.isPro && !quota.allowed)
   const cannotAdd = isLocked || atContactLimit
+  const hasActivePlan = Boolean(quota?.isPro || sub?.status === 'active')
+
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      const r = await hrmAPI.downloadDirectoryExcel()
+      const url = window.URL.createObjectURL(new Blob([r.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `directorio-reclutadoras-hrm-${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      alert(err.response?.data?.error || err.message)
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <>
@@ -88,13 +109,23 @@ export default function ReclutadorasPage() {
         <div>
           <h1 className="page-title">Directorio de reclutadores</h1>
           <p className="page-subtitle">
-            {quota?.isPro || sub?.status === 'active'
-              ? 'Plan Pro: acceso completo a todos los datos de contacto'
+            {hasActivePlan
+              ? 'Plan activo: acceso completo a todos los datos de contacto'
               : `Plan gratuito: hasta ${quota?.limit ?? 5} reclutadores con datos y ${quota?.limit ?? 5} en seguimiento${
                   quota && !quota.isPro ? ` · ${quota.count}/${quota.limit} contactos` : ''
                 }`}
           </p>
         </div>
+        {hasActivePlan ? (
+          <button className="btn btn-outline btn-sm" onClick={handleDownload} disabled={downloading}>
+            {downloading ? <span className="spinner spinner-sm" /> : <Download size={14} />}
+            {downloading ? 'Descargando…' : 'Descargar Excel completo'}
+          </button>
+        ) : (
+          <Link to="/app/membresia" className="btn btn-outline btn-sm">
+            <Download size={14} /> Descargar Excel (plan $99/30 días)
+          </Link>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 320px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
@@ -190,10 +221,10 @@ export default function ReclutadorasPage() {
                       <span>
                         {atContactLimit && !isLocked
                           ? `Alcanzaste el límite de ${quota.limit} contactos del plan gratuito.`
-                          : `Contacto disponible para los primeros ${quota?.limit ?? 5} reclutadores o con plan Pro.`}
+                          : `Contacto disponible para los primeros ${quota?.limit ?? 5} reclutadores o con el plan de $99 / 30 días.`}
                       </span>
                       <Link to="/app/membresia" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start' }}>
-                        <CreditCard size={13} /> Suscribirme
+                        <CreditCard size={13} /> Ver plan
                       </Link>
                     </div>
                   ) : selected.email ? (
@@ -214,7 +245,7 @@ export default function ReclutadorasPage() {
                   {cannotAdd ? (
                     <Link to="/app/membresia" className="btn btn-primary btn-sm w-full">
                       <Lock size={14} />
-                      {atContactLimit && !isLocked ? 'Límite de contactos — ver Pro' : 'Suscribirme para agregar'}
+                      {atContactLimit && !isLocked ? 'Límite de contactos — ver plan' : 'Ver plan para agregar'}
                     </Link>
                   ) : (
                     <button

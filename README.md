@@ -13,12 +13,22 @@ primer commit.
 
 ## Decisiones de producto (de la conversación)
 
-- **Modelo**: freemium. Cuenta gratis + checker de CV vs. ATS + directorio
-  completo sin datos de contacto + contacto completo de las primeras 5
-  reclutadoras. De la reclutadora #6 en adelante requiere suscripción.
-- **Precio**: $299 MXN/mes como ancla inicial (comparable: JobbyCRM ~$200 MXN,
-  Careerflow ~$480 MXN, Huntr Pro ~$800 MXN — ver hilo de investigación de
-  mercado). Más fácil subir precio después que bajarlo.
+- **Modelo (actualizado 18 jul 2026)**: freemium + un solo plan de pago
+  único. Cuenta gratis: directorio completo sin datos de contacto + contacto
+  completo de las primeras 5 reclutadoras + score gratis de ATS Checker y
+  LinkedIn Score (diagnóstico, sin el "cómo arreglarlo" ni el análisis con
+  IA). Un pago único de **$99 MXN da acceso a TODO por 30 días**: contacto
+  ilimitado con todas las reclutadoras, ATS Checker con IA (hasta 5 usos) y
+  LinkedIn Score con IA por industria (hasta 5 usos). No es suscripción
+  recurrente — al vencer, el usuario paga de nuevo si quiere seguir. Esto
+  reemplazó el modelo anterior de Pro $299 MXN/mes + pack CV IA $149 sueltos.
+- **LinkedIn Score**: el usuario exporta su perfil como PDF ("Más" → "Guardar
+  en PDF" en LinkedIn) o pega el texto — nunca se hace scraping de LinkedIn
+  (viola sus términos). El score de completitud (gratis) se basa en el
+  criterio público "All-Star" de LinkedIn; el análisis por industria usa
+  Claude. Metodología pública y transparente en `/metodologia-linkedin`
+  (qué es oficial vs. consenso de la industria, y qué no se puede saber:
+  el algoritmo real de ranking de LinkedIn no es público).
 - **Segmento**: mandos medios (nivel Adecco/Manpower), no el segmento senior
   que ataca LinkedIn Premium. UX simple y rápida para Gen Z/millennial.
 - **WhatsApp**: solo links manuales `wa.me` (click-to-chat) en el MVP, no
@@ -67,13 +77,9 @@ primer commit.
 | `server/src/services/tappt.js` | `backend/src/services/tappt.js` | `notify_to` dinámico por usuario en vez de fijo |
 | `server/src/routes/hrm.js` | `backend/src/routes/crm.js` | Mismo patrón de rutas/tenant scoping; usa Supabase client en vez de pool de `pg` a Railway Postgres |
 
-## Pendiente (no incluido en este scaffold)
+## Pendiente
 
-- `web/src/components/Layout.jsx`, `LoginPage.jsx`, `SignupPage.jsx` y las
-  páginas de directorio/seguimiento/CVs/agenda — falta el diseño de producto
-  antes de construir la UI real (esto es estructura, no producto terminado).
-- Lógica real del checker ATS (extracción de texto de PDF/DOCX, matching de
-  keywords).
-- Subida de CV a Supabase Storage + límite de 5 variantes.
-- Integración de cobro (Stripe/Conekta/Mercado Pago — no se ha discutido cuál).
-- Confirmación legal sobre STPS.
+- Confirmación legal sobre STPS (aún abierta, ver nota en Decisiones de producto).
+- Crear el bucket `linkedin` en Supabase Storage y el link de pago único
+  `CLIP_BUNDLE_LINK` en Clip (ver `db/migrate.md`) antes de que el plan
+  $99/30 días funcione en producción.

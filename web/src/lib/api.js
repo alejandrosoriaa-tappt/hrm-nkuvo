@@ -73,8 +73,19 @@ export const hrmAPI = {
   }),
   deleteCv:              (id)        => api.delete(`/api/hrm/cvs/${id}`),
   checkCvAts:            (id)        => api.post(`/api/hrm/cvs/${id}/ats-check`),
-  // Sugerir con IA: formato/estructura ATS (Pro). Mantiene path /rewrite por compatibilidad.
+  // Sugerir con IA: formato/estructura ATS (plan $99/30 días, 5 usos/mes).
   rewriteCv:             (id, contexto) => api.post(`/api/hrm/cvs/${id}/rewrite`, { contexto }),
+
+  // LinkedIn Score — un perfil activo por usuario (PDF exportado o texto pegado)
+  getLinkedinProfile:    ()          => api.get('/api/hrm/linkedin'),
+  uploadLinkedinProfile: (formData)  => api.post('/api/hrm/linkedin', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  pasteLinkedinProfile:  (texto)     => api.post('/api/hrm/linkedin', { texto }),
+  deleteLinkedinProfile: ()          => api.delete('/api/hrm/linkedin'),
+  scoreLinkedinProfile:  ()          => api.post('/api/hrm/linkedin/score'),
+  // Análisis por industria con IA (plan $99/30 días, 5 usos/mes)
+  suggestLinkedinAi:     (industria) => api.post('/api/hrm/linkedin/ai-suggest', { industria }),
 
   // Agenda / citas
   listAppointments:      (params)    => api.get('/api/hrm/appointments', { params }),
@@ -84,19 +95,21 @@ export const hrmAPI = {
   // Suscripción (estado simple — usado en Resumen y Reclutadoras)
   getSubscription:       ()          => api.get('/api/hrm/subscription'),
 
-  // Billing Clip
+  // Billing Clip — plan único $99 MXN / 30 días
   getBillingStatus:      ()          => api.get('/api/hrm/billing/status'),
-  startCheckout:         ()          => api.post('/api/hrm/billing/checkout'),
-  startCvPackCheckout:   ()          => api.post('/api/hrm/billing/checkout-cv-pack'),
-  cancelSubscription:    ()          => api.post('/api/hrm/billing/cancel'),
+  startBundleCheckout:   ()          => api.post('/api/hrm/billing/checkout-bundle'),
+
+  // Descarga del directorio completo dentro de la app (requiere plan activo).
+  // responseType: 'blob' porque es un archivo binario, no JSON.
+  downloadDirectoryExcel: ()         => api.get('/api/hrm/directory/download', { responseType: 'blob' }),
 }
 
 // ── Venta suelta del directorio ($99, landing pública sin cuenta) ──────────
 export const directoryAPI = {
+  count:    ()           => api.get('/api/hrm/directory/count'),
   checkout: (email)     => api.post('/api/hrm/directory/checkout', { email }),
   status:   (orderRef)  => api.get(`/api/hrm/directory/status/${orderRef}`),
   lookup:   (email)     => api.get('/api/hrm/directory/lookup', { params: { email } }),
-  downloadUrl: (token)  => `${env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || ''}/api/hrm/directory/download/${token}`,
 }
 
 export default api

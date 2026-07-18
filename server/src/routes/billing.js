@@ -1,26 +1,31 @@
 /**
  * Billing — integración con Clip (clip.mx)
  *
+ * 18 jul 2026: reemplazado el modelo anterior (Pro $299/mes recurrente +
+ * pack CV IA $149 suelto) por un solo plan de pago único: $99 MXN dan
+ * acceso a TODO (directorio completo, ATS Checker con IA 5x/mes, LinkedIn
+ * Score con IA) durante 30 días. Al vencer, el usuario paga de nuevo si
+ * quiere seguir — no hay cobro recurrente automático, así que no existe
+ * "cancelar": simplemente no se renueva.
+ *
  * Arquitectura elegida tras investigar la API:
  *   - La API de suscripciones de Clip NO está documentada públicamente.
- *   - El checkout de suscripción se maneja con un link hospedado que Clip genera
- *     desde el dashboard (un solo link reutilizable para el plan).
+ *   - El checkout se maneja con un link hospedado que Clip genera desde el
+ *     dashboard (un solo link reutilizable, de pago único — no de suscripción).
  *   - Los eventos de pago llegan por Postback Webhooks configurados en el dashboard.
- *   - La cancelación programática no tiene endpoint documentado; el flujo es:
- *     marcar la intención en BD y guiar al usuario a Clip o al soporte de NKUVO.
  *
  * Endpoints:
- *   POST /api/hrm/billing/checkout  → devuelve la URL del checkout de Clip
- *   POST /api/hrm/billing/webhook   → recibe postback de Clip (público, sin auth de usuario)
- *   POST /api/hrm/billing/cancel    → usuario solicita cancelar
- *   GET  /api/hrm/billing/status    → estado actual de la suscripción del usuario
+ *   POST /api/hrm/billing/checkout-bundle → devuelve la URL del checkout de Clip
+ *   POST /api/hrm/billing/webhook         → recibe postback de Clip (público, sin auth de usuario)
+ *   GET  /api/hrm/billing/status          → estado actual del plan del usuario
  */
 
 import { Router } from 'express'
 import crypto from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { authMiddleware } from '../middleware/auth.js'
-import { isProUser } from '../lib/subscription.js'
+import { isProUser, checkUsageLimit, AI_USAGE_MONTHLY_LIMIT } from '../lib/subscription.js'
+import { grantBundleAccess } from '../lib/bundleAccess.js'
 
 const router = Router()
 
@@ -29,14 +34,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// Link de suscripción de Clip (creado desde el dashboard, único para el plan HRM $299/mes)
-const CLIP_SUBSCRIPTION_LINK =
-  process.env.CLIP_SUBSCRIPTION_LINK ||
-  'https://pago.clip.mx/v2/suscripcion/eaadea41-f533-4902-8fb3-a1836c57b83f'
-
-// Link de pago único de Clip para el pack "CV IA + ATS Checker" ($149 MXN).
-// Debe crearse aparte en el dashboard de Clip (checkout de pago único, no suscripción).
-const CLIP_CV_PACK_LINK = process.env.CLIP_CV_PACK_LINK
+// Link de pago único de Clip para el plan $99 MXN / 30 días.
+// Crear en el dashboard de Clip como checkout de un solo cobro (no suscripción).
+const CLIP_BUNDLE_LINK = process.env.CLIP_BUNDLE_LINK
+const BUNDLE_PRICE = 99
+const BUNDLE_DAYS = 30
 
 // Secret para verificar que el postback viene de Clip.
 // Clip no firma webhooks con HMAC, así que usamos un token secreto en la URL
@@ -45,94 +47,66 @@ const CLIP_WEBHOOK_SECRET = process.env.CLIP_WEBHOOK_SECRET
 
 // ── GET /status ───────────────────────────────────────────────────────────
 router.get('/status', authMiddleware, async (req, res) => {
-  // Cuentas demo (DEMO_EMAILS en Railway): Pro sin pasar por Clip.
+  // Cuentas demo (DEMO_EMAILS en Railway): plan completo sin pasar por Clip.
   const isDemoPro = await isProUser(supabase, req.user.id, req.user.email)
   if (isDemoPro) {
-    return res.json({ status: 'active', plan: 'demo', isActive: true, isFree: false, hasCvPack: true })
+    return res.json({
+      status: 'active', plan: 'demo', isActive: true, isFree: false, hasCvPack: true,
+      atsUsage: { used: 0, limit: AI_USAGE_MONTHLY_LIMIT },
+      linkedinUsage: { used: 0, limit: AI_USAGE_MONTHLY_LIMIT },
+    })
   }
 
   const { data, error } = await supabase
     .from('hrm_subscriptions')
-    .select('status, plan, current_period_end, clip_customer_email, cancel_requested_at, cv_pack_purchased_at')
+    .select('status, plan, current_period_start, current_period_end, clip_customer_email, cv_pack_purchased_at')
     .eq('user_id', req.user.id)
     .maybeSingle()
   if (error) return res.status(500).json({ error: error.message })
 
   const sub = data || { status: 'free' }
 
-  // Considerar expirado si current_period_end ya pasó (aunque Clip no canceló aún)
+  // Considerar expirado si current_period_end ya pasó (pago único, sin webhook de renovación)
   const isExpired =
     sub.status === 'active' &&
     sub.current_period_end &&
     new Date(sub.current_period_end) < new Date()
 
+  const isActive = sub.status === 'active' && !isExpired
+
+  const [atsUsage, linkedinUsage] = isActive
+    ? await Promise.all([
+        checkUsageLimit(supabase, { userId: req.user.id, email: req.user.email, kind: 'ats_rewrite' }),
+        checkUsageLimit(supabase, { userId: req.user.id, email: req.user.email, kind: 'linkedin_ai' }),
+      ])
+    : [{ used: 0, limit: AI_USAGE_MONTHLY_LIMIT }, { used: 0, limit: AI_USAGE_MONTHLY_LIMIT }]
+
   res.json({
     ...sub,
-    hasCvPack: Boolean(sub.cv_pack_purchased_at) || (sub.status === 'active' && !isExpired),
-    isActive: sub.status === 'active' && !isExpired,
-    isFree:   sub.status === 'free' || isExpired,
+    hasCvPack: Boolean(sub.cv_pack_purchased_at) || isActive,
+    isActive,
+    isFree: sub.status === 'free' || isExpired,
+    atsUsage,
+    linkedinUsage,
   })
 })
 
-// ── POST /checkout ────────────────────────────────────────────────────────
-// Devuelve la URL del checkout de Clip. El cliente redirige al usuario ahí.
-// Clip maneja la captura de tarjeta y el cobro recurrente.
-// No guardamos ningún dato de tarjeta — solo referencias de Clip que llegan
-// por webhook después del pago.
-router.post('/checkout', authMiddleware, async (req, res) => {
-  // Verificar que no tenga ya suscripción activa
-  const { data: existing } = await supabase
-    .from('hrm_subscriptions')
-    .select('status, current_period_end')
-    .eq('user_id', req.user.id)
-    .maybeSingle()
-
-  if (existing?.status === 'active') {
-    const isExpired = existing.current_period_end && new Date(existing.current_period_end) < new Date()
-    if (!isExpired) {
-      return res.status(409).json({ error: 'Ya tienes una suscripción activa.' })
-    }
+// ── POST /checkout-bundle ─────────────────────────────────────────────────
+// Devuelve la URL del checkout de Clip para el plan único $99/30 días.
+// Clip maneja la captura de tarjeta. No guardamos ningún dato de tarjeta —
+// solo referencias de Clip que llegan por webhook después del pago.
+router.post('/checkout-bundle', authMiddleware, async (req, res) => {
+  if (!CLIP_BUNDLE_LINK) {
+    return res.status(503).json({ error: 'Plan no configurado todavía.' })
   }
 
-  // El link de Clip acepta parámetros de referencia para identificar al usuario
-  // cuando Clip nos notifica por webhook (reference se puede mapear a user_id).
-  const url = new URL(CLIP_SUBSCRIPTION_LINK)
-  url.searchParams.set('reference', req.user.id)
+  const url = new URL(CLIP_BUNDLE_LINK)
+  url.searchParams.set('reference', `${req.user.id}::bundle`)
 
   res.json({
     checkoutUrl: url.toString(),
-    plan: 'suscripcion_mensual',
-    amount: 299,
-    currency: 'MXN',
-  })
-})
-
-// ── POST /checkout-cv-pack ────────────────────────────────────────────────
-// Pago único ($149 MXN): ATS Checker + ayuda a construir tu CV con IA, sin
-// suscripción mensual. reference lleva un sufijo "::cv_pack" para que el
-// webhook lo distinga del checkout de suscripción y no toque "status".
-router.post('/checkout-cv-pack', authMiddleware, async (req, res) => {
-  if (!CLIP_CV_PACK_LINK) {
-    return res.status(503).json({ error: 'Pack CV IA no configurado todavía.' })
-  }
-
-  const { data: existing } = await supabase
-    .from('hrm_subscriptions')
-    .select('cv_pack_purchased_at')
-    .eq('user_id', req.user.id)
-    .maybeSingle()
-
-  if (existing?.cv_pack_purchased_at) {
-    return res.status(409).json({ error: 'Ya compraste el pack CV IA + ATS Checker.' })
-  }
-
-  const url = new URL(CLIP_CV_PACK_LINK)
-  url.searchParams.set('reference', `${req.user.id}::cv_pack`)
-
-  res.json({
-    checkoutUrl: url.toString(),
-    plan: 'cv_pack',
-    amount: 149,
+    plan: 'bundle_30d',
+    amount: BUNDLE_PRICE,
     currency: 'MXN',
   })
 })
@@ -161,15 +135,12 @@ router.post('/webhook', async (req, res) => {
   console.log('Clip webhook payload:', JSON.stringify(payload))
 
   // 2. Extraer campos del payload (Clip puede variar la estructura)
-  const reference    = payload.reference      // user_id que pasamos en /checkout
+  const reference    = payload.reference      // user_id::bundle que pasamos en /checkout-bundle
   const status       = payload.status         // PAID, COMPLETED, FAILED, CANCELLED...
   const paymentId    = payload.payment_id || payload.id || payload.payment_request_id
   const email        = payload.email || payload.customer_email
-  const amount       = payload.amount
-  // Para suscripciones recurrentes Clip puede enviar period info
-  const periodEnd    = payload.next_payment_date || payload.period_end
 
-  // 2a. Directorio suelto ($99, pago único, comprador sin cuenta) creado vía
+  // 2a. Compra suelta ($99, pago único, comprador SIN contraseña) creada vía
   // la API de checkout (POST /v2/checkout en directory.js). Confirmado con
   // pruebas reales (Railway logs) que Clip manda DOS webhooks distintos por
   // cada pago de este tipo:
@@ -182,7 +153,7 @@ router.post('/webhook', async (req, res) => {
   //      así que nunca va a hacer match — es inofensivo, solo no encuentra
   //      fila y sigue de largo (el primer webhook ya marcó todo).
   // Se revisa ANTES del early-return de "sin reference" de abajo, que es
-  // solo para el flujo de links hospedados (suscripción/cv_pack).
+  // solo para el flujo de link hospedado del plan ($99/30 días).
   const clipPaymentRequestId = payload.id || payload.payment_request_id || payload.order_id
   if (clipPaymentRequestId) {
     const upperStatus = (status || payload.payment_status || payload.resource_status || payload.event_type || '').toUpperCase()
@@ -190,23 +161,42 @@ router.post('/webhook', async (req, res) => {
 
     if (paidStatuses.includes(upperStatus)) {
       try {
+        // Flip idempotente ANTES de provisionar la cuenta: si Clip reintenta
+        // el webhook, la segunda vez no matchea (ya no está en 'pending') y
+        // no se vuelve a llamar a grantBundleAccess ni a extender el plan.
         const { data: matched, error } = await supabase
           .from('hrm_directory_purchases')
-          .update({ status: 'paid', download_token: crypto.randomUUID() })
+          .update({ status: 'paid' })
           .eq('clip_order_id', clipPaymentRequestId)
-          .eq('status', 'pending') // idempotente: no regenerar token si Clip reintenta el webhook
-          .select('id')
+          .eq('status', 'pending')
+          .select('id, email')
 
         if (error) {
           console.error('Clip webhook (directory) DB error:', error)
           return res.status(500).json({ error: 'DB error' })
         }
         if (matched && matched.length > 0) {
+          const purchase = matched[0]
+          try {
+            const { userId, tokenHash, tokenType } = await grantBundleAccess(supabase, {
+              email: purchase.email,
+              paymentId: clipPaymentRequestId,
+            })
+            await supabase
+              .from('hrm_directory_purchases')
+              .update({ user_id: userId, magic_token_hash: tokenHash, magic_token_type: tokenType })
+              .eq('id', purchase.id)
+          } catch (grantErr) {
+            // El pago ya quedó 'paid' — no hay que cobrar de nuevo. Si falla
+            // el provisioning, /lookup puede reintentar generar el acceso
+            // (regenerateMagicLink) cuando el comprador vuelva con su correo.
+            console.error('grantBundleAccess error (pago ya confirmado):', grantErr.message)
+          }
           console.log(`Clip webhook procesado (directory): clip_order_id=${clipPaymentRequestId}`)
           return res.sendStatus(200)
         }
-        // Sin match: no es una compra del directorio (o ya estaba paid) —
-        // sigue de largo al flujo de suscripción/cv_pack de abajo.
+        // Sin match: no es esta compra (o ya estaba paid) — sigue de largo
+        // al flujo del plan ($99/30 días vía link hospedado) de abajo.
       } catch (err) {
         console.error('Clip webhook (directory) error:', err)
         return res.status(500).json({ error: 'Internal error' })
@@ -221,36 +211,49 @@ router.post('/webhook', async (req, res) => {
     return res.sendStatus(200)
   }
 
-  // 2b. Pack CV IA ($149, pago único): reference lleva el sufijo "::cv_pack"
-  // que pusimos en /checkout-cv-pack. No toca "status" del plan mensual.
-  if (reference.endsWith('::cv_pack')) {
-    const userId = reference.replace(/::cv_pack$/, '')
+  // 2b. Plan único ($99, pago único, 30 días): reference lleva el sufijo
+  // "::bundle" que pusimos en /checkout-bundle. No hay renovación automática
+  // — cada pago exitoso reinicia current_period_start/end desde hoy (sin
+  // acumular días si compra antes de que venza el periodo anterior, para
+  // mantener el modelo simple: "un pago = 30 días desde ese pago").
+  if (reference.endsWith('::bundle')) {
+    const userId = reference.replace(/::bundle$/, '')
     const upperStatus = (status || '').toUpperCase()
     const paidStatuses = ['PAID', 'COMPLETED', 'APPROVED', 'ACTIVE']
 
     if (!paidStatuses.includes(upperStatus)) {
-      console.log('Clip webhook (cv_pack): status no es de pago exitoso:', status)
+      console.log('Clip webhook (bundle): status no es de pago exitoso:', status)
       return res.sendStatus(200)
     }
 
     try {
+      const now = new Date()
+      const periodEnd = new Date(now)
+      periodEnd.setDate(periodEnd.getDate() + BUNDLE_DAYS)
+
+      const updateData = {
+        user_id: userId,
+        status: 'active',
+        plan: 'bundle_30d',
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        clip_order_id: paymentId,
+        updated_at: now.toISOString(),
+      }
+      if (email) updateData.clip_customer_email = email
+
       const { error } = await supabase
         .from('hrm_subscriptions')
-        .upsert({
-          user_id: userId,
-          cv_pack_purchased_at: new Date().toISOString(),
-          cv_pack_order_id: paymentId,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
+        .upsert(updateData, { onConflict: 'user_id' })
 
       if (error) {
-        console.error('Clip webhook (cv_pack) DB error:', error)
+        console.error('Clip webhook (bundle) DB error:', error)
         return res.status(500).json({ error: 'DB error' })
       }
-      console.log(`Clip webhook procesado (cv_pack): user=${userId}`)
+      console.log(`Clip webhook procesado (bundle): user=${userId}`)
       return res.sendStatus(200)
     } catch (err) {
-      console.error('Clip webhook (cv_pack) error:', err)
+      console.error('Clip webhook (bundle) error:', err)
       return res.status(500).json({ error: 'Internal error' })
     }
   }
@@ -291,107 +294,10 @@ router.post('/webhook', async (req, res) => {
     }
   }
 
-  // 3. Determinar nuevo status (plan mensual)
-  const statusMap = {
-    'PAID':       'active',
-    'COMPLETED':  'active',
-    'APPROVED':   'active',
-    'ACTIVE':     'active',
-    'FAILED':     'past_due',
-    'REJECTED':   'past_due',
-    'CANCELLED':  'cancelled',
-    'CANCELED':   'cancelled',
-    'EXPIRED':    'cancelled',
-  }
-
-  const upperStatus = (status || '').toUpperCase()
-  const newStatus = statusMap[upperStatus]
-
-  if (!newStatus) {
-    // Status desconocido — logear, no actualizar BD, responder 200
-    console.log('Clip webhook: status desconocido:', status)
-    return res.sendStatus(200)
-  }
-
-  // 4. Calcular current_period_end (aproximar 31 días si Clip no lo manda)
-  let currentPeriodEnd = periodEnd ? new Date(periodEnd).toISOString() : null
-  if (newStatus === 'active' && !currentPeriodEnd) {
-    const d = new Date()
-    d.setDate(d.getDate() + 31)
-    currentPeriodEnd = d.toISOString()
-  }
-
-  // 5. Upsert en hrm_subscriptions
-  try {
-    const updateData = {
-      user_id: reference,
-      status: newStatus,
-      plan: 'suscripcion_mensual',
-      clip_order_id: paymentId,
-      updated_at: new Date().toISOString(),
-    }
-    if (email)            updateData.clip_customer_email = email
-    if (currentPeriodEnd) updateData.current_period_end  = currentPeriodEnd
-    if (newStatus === 'active') updateData.cancel_requested_at = null // limpiar si reactivó
-
-    const { error } = await supabase
-      .from('hrm_subscriptions')
-      .upsert(updateData, { onConflict: 'user_id' })
-
-    if (error) {
-      console.error('Clip webhook DB error:', error)
-      return res.status(500).json({ error: 'DB error' })
-    }
-
-    console.log(`Clip webhook procesado: user=${reference} status=${newStatus}`)
-    res.sendStatus(200)
-  } catch (err) {
-    console.error('Clip webhook error:', err)
-    res.status(500).json({ error: 'Internal error' })
-  }
-})
-
-// ── POST /cancel ──────────────────────────────────────────────────────────
-// El usuario solicita cancelar su suscripción.
-// Clip no tiene endpoint documentado para cancelar programáticamente, así que:
-//   1. Marcamos cancel_requested_at en BD
-//   2. Devolvemos instrucciones para que el usuario cancele desde el portal de Clip
-//      o contacte soporte de NKUVO Labs vía WhatsApp
-// El acceso Pro se mantiene hasta current_period_end (ya pagó ese periodo).
-router.post('/cancel', authMiddleware, async (req, res) => {
-  const { data: sub } = await supabase
-    .from('hrm_subscriptions')
-    .select('status, current_period_end, cancel_requested_at')
-    .eq('user_id', req.user.id)
-    .maybeSingle()
-
-  if (!sub || sub.status !== 'active') {
-    return res.status(400).json({ error: 'No tienes una suscripción activa.' })
-  }
-  if (sub.cancel_requested_at) {
-    return res.status(400).json({
-      error: 'Ya solicitaste la cancelación. El equipo NKUVO la procesará pronto.',
-      cancelRequestedAt: sub.cancel_requested_at,
-    })
-  }
-
-  const { error } = await supabase
-    .from('hrm_subscriptions')
-    .update({ cancel_requested_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('user_id', req.user.id)
-
-  if (error) return res.status(500).json({ error: error.message })
-
-  // TODO cuando Clip exponga endpoint de cancelación API: llamarlo aquí
-  // Por ahora el soporte de NKUVO procesa la cancelación manualmente desde
-  // el panel de Clip (Dashboard > Pagos Recurrentes > eliminar suscriptor).
-
-  res.json({
-    ok: true,
-    message: 'Solicitud de cancelación registrada. Tu acceso Pro se mantiene hasta el fin del periodo actual.',
-    currentPeriodEnd: sub.current_period_end,
-    supportWhatsApp: 'https://wa.me/5215658732336',
-  })
+  // 3. Cualquier otra referencia no reconocida (ej. residual del viejo modelo
+  // de suscripción mensual) — logear y responder 200 sin tocar la BD.
+  console.log('Clip webhook: reference no reconocida:', reference)
+  res.sendStatus(200)
 })
 
 export default router

@@ -54,7 +54,7 @@ export default function AtsExplainerPanel() {
       </ul>
       <div className="auth-info-footer">
         <ScanSearch size={16} style={{ flexShrink: 0 }} />
-        <span>El diagnóstico es gratis. Arreglarlo paso a paso y reescribir tu CV con IA ya es parte del plan Pro.</span>
+        <span>El diagnóstico es gratis. Arreglarlo paso a paso con IA (y el LinkedIn Score) son parte del plan de $99 MXN / 30 días.</span>
       </div>
       <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.625rem' }}>
         Cifras de referencia de la industria de reclutamiento.
