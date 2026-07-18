@@ -1,5 +1,9 @@
 /**
- * Venta del directorio de reclutadoras ($99 MXN, pago único, SIN cuenta).
+ * Compra del plan completo ($99 MXN, pago único, SIN formulario de
+ * contraseña) — 18 jul 2026: reemplaza la venta suelta del Excel de un
+ * solo uso. Ahora $99 dan acceso de 30 días a TODA la app (directorio
+ * completo, ATS Checker con IA, LinkedIn Score con IA), y el comprador
+ * nunca tiene que llenar un formulario de registro con contraseña.
  *
  * Flujo (landing pública /directorio, fuera del login):
  *   1. POST /checkout        { email } → crea compra 'pending', crea un checkout
@@ -7,10 +11,14 @@
  *   2. Clip cobra, redirige al comprador a /directorio/gracias?orderRef=...
  *      (redirection_url.success, configurable porque este checkout es de la
  *      API, a diferencia del link hospedado viejo que no soportaba redirect).
- *   3. GET  /status/:orderRef → la página de gracias hace polling hasta ver
- *      status='paid' (el webhook lo procesa billing.js, ver nota abajo).
- *   4. GET  /download/:token → genera el Excel al vuelo y lo marca como
- *      descargado (un solo uso: si ya se descargó, 410 Gone).
+ *   3. El webhook (billing.js) confirma el pago y llama a grantBundleAccess
+ *      (server/src/lib/bundleAccess.js): crea/reusa la cuenta de Supabase
+ *      Auth para ese correo con auth.admin.generateLink y activa el plan.
+ *   4. GET  /status/:orderRef → la página de gracias hace polling hasta ver
+ *      status='paid', y recibe un token_hash de un solo uso.
+ *   5. El frontend llama supabase.auth.verifyOtp({ token_hash, type:
+ *      'magiclink' }) — eso establece la sesión real sin que el usuario
+ *      haya escrito una contraseña en ningún momento.
  *
  * IMPORTANTE sobre el webhook: se probó pasar un `webhook_url` propio en el
  * body de /v2/checkout (esperando que Clip lo llamara por-transacción) y
@@ -22,15 +30,19 @@
  * archivo. Si se necesita cambiar esa URL de cuenta en el futuro, hay que
  * actualizar billing.js, no agregar otro webhook aquí.
  *
+ * La descarga del Excel ya NO vive aquí (no hay endpoint público/anónimo de
+ * descarga) — es un botón dentro de la app, autenticado, ver
+ * GET /api/hrm/directory/download en hrm.js.
+ *
  * Router público: NO usa authMiddleware (a propósito, se monta antes de
  * /api/hrm en index.js para que el router genérico de HRM no lo capture).
  */
 
 import { Router } from 'express'
 import crypto from 'node:crypto'
-import ExcelJS from 'exceljs'
 import rateLimit from 'express-rate-limit'
 import { createClient } from '@supabase/supabase-js'
+import { grantBundleAccess, regenerateMagicLink } from '../lib/bundleAccess.js'
 
 const router = Router()
 
@@ -47,7 +59,7 @@ const APP_URL = process.env.APP_URL || 'https://hrm.nkuvo.com'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const DIRECTORY_PRICE = 99
+const BUNDLE_PRICE = 99
 
 const checkoutLimiter = rateLimit({ windowMs: 60_000, max: 10 })
 const lookupLimiter = rateLimit({ windowMs: 60_000, max: 8 })
@@ -55,7 +67,7 @@ const lookupLimiter = rateLimit({ windowMs: 60_000, max: 8 })
 // ── POST /checkout ────────────────────────────────────────────────────────
 router.post('/checkout', checkoutLimiter, async (req, res) => {
   if (!CLIP_API_KEY || !CLIP_SECRET_KEY) {
-    return res.status(503).json({ error: 'Venta del directorio no configurada todavía.' })
+    return res.status(503).json({ error: 'Compra del plan no configurada todavía.' })
   }
 
   const email = (req.body?.email || '').trim().toLowerCase()
@@ -67,7 +79,7 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
 
   const { error } = await supabase
     .from('hrm_directory_purchases')
-    .insert({ email, order_ref: orderRef, status: 'pending', amount: DIRECTORY_PRICE })
+    .insert({ email, order_ref: orderRef, status: 'pending', amount: BUNDLE_PRICE })
 
   if (error) return res.status(500).json({ error: error.message })
 
@@ -78,9 +90,9 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Basic ${clipToken}` },
       body: JSON.stringify({
-        amount: DIRECTORY_PRICE,
+        amount: BUNDLE_PRICE,
         currency: 'MXN',
-        purchase_description: 'Directorio de reclutadoras — HRM NKUVO',
+        purchase_description: 'Plan completo 30 días — HRM NKUVO',
         redirection_url: {
           success: `${APP_URL}/directorio/gracias?orderRef=${orderRef}`,
           error: `${APP_URL}/directorio?status=error`,
@@ -113,7 +125,7 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
     res.json({
       checkoutUrl: data.payment_request_url,
       orderRef,
-      amount: DIRECTORY_PRICE,
+      amount: BUNDLE_PRICE,
       currency: 'MXN',
     })
   } catch (err) {
@@ -135,11 +147,15 @@ router.get('/count', async (req, res) => {
 })
 
 // ── GET /status/:orderRef ─────────────────────────────────────────────────
-// La página de gracias hace polling aquí tras volver de Clip.
+// La página de gracias hace polling aquí tras volver de Clip. Una vez
+// 'paid', el webhook (billing.js → grantBundleAccess) ya dejó un
+// magic_token_hash de un solo uso — el frontend lo usa con
+// supabase.auth.verifyOtp({ token_hash, type: 'magiclink' }) para loguear
+// sin pedir contraseña.
 router.get('/status/:orderRef', async (req, res) => {
   const { data, error } = await supabase
     .from('hrm_directory_purchases')
-    .select('status, download_token, downloaded_at')
+    .select('status, email, magic_token_hash, magic_token_type')
     .eq('order_ref', req.params.orderRef)
     .maybeSingle()
 
@@ -148,15 +164,19 @@ router.get('/status/:orderRef', async (req, res) => {
 
   res.json({
     status: data.status,
-    downloadToken: data.status === 'paid' && !data.downloaded_at ? data.download_token : null,
-    alreadyDownloaded: Boolean(data.downloaded_at),
+    email: data.email,
+    tokenHash: data.status === 'paid' ? data.magic_token_hash : null,
+    tokenType: data.magic_token_type || 'magiclink',
   })
 })
 
 // ── GET /lookup ───────────────────────────────────────────────────────────
 // Respaldo para cuando Clip no regresa al usuario a /directorio/gracias
-// (sus links de pago hospedados no soportan redirect configurable). El
-// comprador vuelve manualmente y recupera su descarga con el correo que usó.
+// (sus links de pago hospedados no soportan redirect configurable), o
+// cuando el token original ya expiró (los magic links de Supabase vencen
+// rápido). El comprador vuelve manualmente con su correo y se le emite un
+// token fresco — su cuenta y su plan ya quedaron activos en el webhook, esto
+// solo re-emite la llave para entrar sin contraseña.
 router.get('/lookup', lookupLimiter, async (req, res) => {
   const email = (req.query.email || '').trim().toLowerCase()
   if (!EMAIL_RE.test(email)) {
@@ -165,7 +185,7 @@ router.get('/lookup', lookupLimiter, async (req, res) => {
 
   const { data, error } = await supabase
     .from('hrm_directory_purchases')
-    .select('download_token, downloaded_at')
+    .select('id, clip_order_id, user_id')
     .eq('email', email)
     .eq('status', 'paid')
     .order('created_at', { ascending: false })
@@ -179,151 +199,31 @@ router.get('/lookup', lookupLimiter, async (req, res) => {
     })
   }
 
-  res.json({
-    downloadToken: data.downloaded_at ? null : data.download_token,
-    alreadyDownloaded: Boolean(data.downloaded_at),
-  })
-})
-
-// ── GET /download/:token ──────────────────────────────────────────────────
-// Genera el Excel al vuelo desde hrm_recruiters, con marca de agua del
-// comprador, y marca la compra como descargada (un solo uso).
-router.get('/download/:token', async (req, res) => {
-  const { data: purchase, error: purchaseError } = await supabase
-    .from('hrm_directory_purchases')
-    .select('*')
-    .eq('download_token', req.params.token)
-    .maybeSingle()
-
-  if (purchaseError) return res.status(500).json({ error: purchaseError.message })
-  if (!purchase || purchase.status !== 'paid') {
-    return res.status(404).json({ error: 'Link de descarga inválido.' })
-  }
-  if (purchase.downloaded_at) {
-    return res.status(410).json({
-      error: 'Este link ya fue usado. Cada compra incluye una sola descarga — escríbenos por WhatsApp si tuviste un problema.',
-      supportWhatsApp: 'https://wa.me/5215658732336',
-    })
-  }
-
-  // Marcar como descargado ANTES de generar el archivo (update condicionado a
-  // downloaded_at IS NULL) para que dos requests concurrentes con el mismo
-  // token no puedan generar el archivo dos veces.
-  const { data: claimed, error: claimError } = await supabase
-    .from('hrm_directory_purchases')
-    .update({ downloaded_at: new Date().toISOString() })
-    .eq('id', purchase.id)
-    .is('downloaded_at', null)
-    .select('id')
-
-  if (claimError) return res.status(500).json({ error: claimError.message })
-  if (!claimed || claimed.length === 0) {
-    return res.status(410).json({
-      error: 'Este link ya fue usado. Cada compra incluye una sola descarga — escríbenos por WhatsApp si tuviste un problema.',
-      supportWhatsApp: 'https://wa.me/5215658732336',
-    })
-  }
-
-  const { data: recruitersRaw, error: recruitersError } = await supabase
-    .from('hrm_recruiters')
-    .select('nombre, industria, sitio_web, email, telefono, ciudad')
-    .order('nombre', { ascending: true })
-
-  if (recruitersError) return res.status(500).json({ error: recruitersError.message })
-
-  // Orden por completitud de datos (pedido explícito): primero las que
-  // tienen sitio web + teléfono + correo, luego las que solo tienen sitio
-  // web (sin teléfono y/o correo), al final el resto (solo teléfono, sin
-  // sitio web). Dentro de cada grupo se mantiene el orden alfabético.
-  const hasVal = (v) => Boolean(v && String(v).trim())
-  const tierOf = (r) => {
-    const hasWeb = hasVal(r.sitio_web)
-    const hasPhone = hasVal(r.telefono)
-    const hasEmail = hasVal(r.email)
-    if (hasWeb && hasPhone && hasEmail) return 0
-    if (hasWeb) return 1
-    return 2
-  }
-  const recruiters = [...(recruitersRaw || [])].sort((a, b) => tierOf(a) - tierOf(b))
-
-  const wb = new ExcelJS.Workbook()
-  wb.creator = 'HRM NKUVO'
-  const ws = wb.addWorksheet('Directorio de Reclutadoras')
-
-  // Sin logo/imagen embebida a propósito — todo el look de marca (banda
-  // verde, tipografía) se logra con formato de celdas, así el archivo pesa
-  // menos y el texto se mantiene seleccionable/buscable.
-  ws.columns = [
-    { key: 'id',        width: 6 },
-    { key: 'nombre',    width: 32 },
-    { key: 'sitio_web', width: 30 },
-    { key: 'telefono',  width: 20 },
-    { key: 'email',     width: 30 },
-    { key: 'ciudad',    width: 26 },
-    { key: 'industria', width: 34 },
-  ]
-
-  // Fila 1 — banner de título (verde oscuro, combinada A1:G1)
-  ws.mergeCells('A1:G1')
-  ws.getRow(1).height = 28
-  const titleCell = ws.getCell('A1')
-  titleCell.value = 'Directorio de reclutadoras y agencias verificadas en México'
-  titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
-  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF15803D' } }
-  titleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 }
-
-  // Fila 2 — banner de subtítulo (verde, combinada A2:G2)
-  ws.mergeCells('A2:G2')
-  ws.getRow(2).height = 18
-  const fechaLegible = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
-  const subtitleCell = ws.getCell('A2')
-  subtitleCell.value = `Actualizado: ${fechaLegible}  ·  Total de registros: ${(recruiters || []).length}`
-  subtitleCell.font = { size: 10, color: { argb: 'FFFFFFFF' } }
-  subtitleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16A34A' } }
-  subtitleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 }
-
-  // Fila 3 — encabezados de columna
-  const headerRow = ws.getRow(3)
-  headerRow.values = ['ID', 'Reclutadora', 'Sitio web', 'Teléfono', 'Correo', 'Ciudad', 'Industria']
-  headerRow.eachCell(cell => {
-    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16A34A' } }
-    cell.alignment = { vertical: 'middle' }
-  })
-  ws.views = [{ state: 'frozen', ySplit: 3 }]
-
-  ;(recruiters || []).forEach((r, i) => {
-    const row = ws.addRow({
-      id:        i + 1,
-      nombre:    r.nombre    || '',
-      sitio_web: r.sitio_web ? { text: r.sitio_web, hyperlink: r.sitio_web } : '',
-      telefono:  r.telefono  || '',
-      email:     r.email     || '',
-      ciudad:    r.ciudad    || '',
-      industria: r.industria || '',
-    })
-    if (i % 2 === 1) {
-      row.eachCell(cell => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F3EC' } }
+  try {
+    if (!data.user_id) {
+      // Caso raro: el pago se confirmó pero grantBundleAccess falló en el
+      // webhook (ver comentario en billing.js) — se repara aquí, activando
+      // la cuenta y el plan igual que lo hubiera hecho el webhook.
+      const { userId, tokenHash, tokenType } = await grantBundleAccess(supabase, {
+        email,
+        paymentId: data.clip_order_id,
       })
+      await supabase
+        .from('hrm_directory_purchases')
+        .update({ user_id: userId, magic_token_hash: tokenHash, magic_token_type: tokenType })
+        .eq('id', data.id)
+      return res.json({ tokenHash, tokenType })
     }
-    row.getCell('sitio_web').font = { color: { argb: 'FF16A34A' }, underline: true }
-  })
 
-  // Marca de agua de trazabilidad — no evita compartirlo, pero identifica
-  // de qué compra salió si aparece circulando.
-  const wmSheet = wb.addWorksheet('Info de compra')
-  wmSheet.columns = [{ key: 'k', width: 22 }, { key: 'v', width: 50 }]
-  wmSheet.addRow({ k: 'Comprado por', v: purchase.email })
-  wmSheet.addRow({ k: 'Pedido', v: purchase.order_ref })
-  wmSheet.addRow({ k: 'Fecha de descarga', v: new Date().toLocaleString('es-MX') })
-  wmSheet.addRow({ k: '', v: 'Este archivo es para uso personal del comprador. Directorio HRM NKUVO — hrm.nkuvo.com' })
-
-  const fecha = new Date().toISOString().slice(0, 10)
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-  res.setHeader('Content-Disposition', `attachment; filename="directorio-reclutadoras-hrm-${fecha}.xlsx"`)
-  await wb.xlsx.write(res)
-  res.end()
+    const { tokenHash, tokenType } = await regenerateMagicLink(supabase, email)
+    res.json({ tokenHash, tokenType })
+  } catch (err) {
+    console.error('lookup access error:', err.message)
+    res.status(500).json({ error: 'No pudimos generar tu acceso. Escríbenos por WhatsApp.' })
+  }
 })
+
+// (Descarga eliminada de aquí — ahora es GET /api/hrm/directory/download,
+// autenticado, dentro de la app. Ver server/src/routes/hrm.js.)
 
 export default router

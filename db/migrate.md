@@ -39,6 +39,33 @@ supabase db push   # si tienes el CLI instalado y el proyecto vinculado
 | `hrm_unlocked_recruiters` | Tracking de reclutadoras con datos desbloqueados (freemium) |
 | `hrm_usage_events` | Conteo de usos de IA limitados del plan (ATS rewrite, LinkedIn IA — 5x/mes) |
 | `hrm_linkedin_profiles` | Perfil de LinkedIn del usuario (PDF o texto pegado) + score + análisis IA |
+| `hrm_directory_purchases` | Compra suelta ($99, solo correo) — 18 jul 2026: ya no entrega un Excel de un solo uso, activa el plan completo de 30 días sin pedir contraseña (ver nota abajo) |
+
+## Compra sin contraseña (18 jul 2026)
+
+La compra suelta de `/directorio` (solo correo, $99 MXN) ya NO entrega un
+Excel de un solo uso — activa el plan completo de 30 días (directorio +
+ATS Checker + LinkedIn Score) para ese correo, **sin pedirle contraseña al
+comprador**. Técnicamente:
+
+1. El webhook de Clip (`billing.js`) confirma el pago y llama a
+   `grantBundleAccess` (`server/src/lib/bundleAccess.js`), que usa
+   `supabase.auth.admin.generateLink({ type: 'magiclink', email })` — esa
+   llamada **crea la cuenta si no existe** y devuelve un `token_hash` de un
+   solo uso, **sin enviar ningún correo** (la entrega del token la hace nuestra
+   propia página, no Supabase).
+2. La página `/directorio/gracias` recibe ese `token_hash` vía
+   `GET /api/hrm/directory/status/:orderRef` y llama
+   `supabase.auth.verifyOtp({ token_hash, type: 'magiclink' })` en el
+   navegador — eso establece la sesión real del usuario ahí mismo.
+3. Si el token ya expiró (los magic links de Supabase vencen rápido) o el
+   comprador vuelve después, `GET /api/hrm/directory/lookup?email=...`
+   regenera un token fresco con el mismo mecanismo.
+
+**Requisito**: el proyecto de Supabase debe tener el provider de Email
+habilitado para `admin.generateLink` (Authentication → Providers → Email).
+No hace falta SMTP configurado porque no se envía correo — el token se
+entrega dentro de la propia página, no por email.
 
 ## Supabase Storage — buckets `cvs` y `linkedin`
 

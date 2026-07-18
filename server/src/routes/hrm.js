@@ -18,6 +18,7 @@ import {
 } from '../lib/subscription.js'
 import { extractCvText } from '../lib/cvText.js'
 import { extractLinkedinText } from '../lib/linkedinText.js'
+import { buildDirectoryWorkbook } from '../lib/directoryExcel.js'
 import {
   anthropicEnabled,
   createAnthropicMessage,
@@ -152,6 +153,31 @@ router.get('/recruiters/:id', recruiterDetailLimit, async (req, res) => {
   }
 
   res.json(recruiter)
+})
+
+// Descarga del Excel completo dentro de la app — reemplaza el link público
+// de un solo uso que existía en /directorio (eliminado 18 jul 2026). Requiere
+// plan activo ($99/30 días); genera el archivo al vuelo, sin límite de veces.
+router.get('/directory/download', async (req, res) => {
+  const isActive = await isProUser(supabase, req.user.id, req.user.email)
+  if (!isActive) {
+    return res.status(403).json({
+      error: 'La descarga del directorio completo es parte del plan de $99 MXN / 30 días.',
+      locked: true,
+    })
+  }
+
+  try {
+    const wb = await buildDirectoryWorkbook(supabase, req.user.email)
+    const fecha = new Date().toISOString().slice(0, 10)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename="directorio-reclutadoras-hrm-${fecha}.xlsx"`)
+    await wb.xlsx.write(res)
+    res.end()
+  } catch (err) {
+    console.error('GET /directory/download error:', err)
+    res.status(500).json({ error: err.message || 'Error generando el archivo' })
+  }
 })
 
 // ── Seguimiento de contacto ──────────────────────────────────────────────

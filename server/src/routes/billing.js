@@ -25,6 +25,7 @@ import crypto from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { authMiddleware } from '../middleware/auth.js'
 import { isProUser, checkUsageLimit, AI_USAGE_MONTHLY_LIMIT } from '../lib/subscription.js'
+import { grantBundleAccess } from '../lib/bundleAccess.js'
 
 const router = Router()
 
@@ -139,7 +140,7 @@ router.post('/webhook', async (req, res) => {
   const paymentId    = payload.payment_id || payload.id || payload.payment_request_id
   const email        = payload.email || payload.customer_email
 
-  // 2a. Directorio suelto ($99, pago único, comprador sin cuenta) creado vía
+  // 2a. Compra suelta ($99, pago único, comprador SIN contraseña) creada vía
   // la API de checkout (POST /v2/checkout en directory.js). Confirmado con
   // pruebas reales (Railway logs) que Clip manda DOS webhooks distintos por
   // cada pago de este tipo:
@@ -160,23 +161,42 @@ router.post('/webhook', async (req, res) => {
 
     if (paidStatuses.includes(upperStatus)) {
       try {
+        // Flip idempotente ANTES de provisionar la cuenta: si Clip reintenta
+        // el webhook, la segunda vez no matchea (ya no está en 'pending') y
+        // no se vuelve a llamar a grantBundleAccess ni a extender el plan.
         const { data: matched, error } = await supabase
           .from('hrm_directory_purchases')
-          .update({ status: 'paid', download_token: crypto.randomUUID() })
+          .update({ status: 'paid' })
           .eq('clip_order_id', clipPaymentRequestId)
-          .eq('status', 'pending') // idempotente: no regenerar token si Clip reintenta el webhook
-          .select('id')
+          .eq('status', 'pending')
+          .select('id, email')
 
         if (error) {
           console.error('Clip webhook (directory) DB error:', error)
           return res.status(500).json({ error: 'DB error' })
         }
         if (matched && matched.length > 0) {
+          const purchase = matched[0]
+          try {
+            const { userId, tokenHash, tokenType } = await grantBundleAccess(supabase, {
+              email: purchase.email,
+              paymentId: clipPaymentRequestId,
+            })
+            await supabase
+              .from('hrm_directory_purchases')
+              .update({ user_id: userId, magic_token_hash: tokenHash, magic_token_type: tokenType })
+              .eq('id', purchase.id)
+          } catch (grantErr) {
+            // El pago ya quedó 'paid' — no hay que cobrar de nuevo. Si falla
+            // el provisioning, /lookup puede reintentar generar el acceso
+            // (regenerateMagicLink) cuando el comprador vuelva con su correo.
+            console.error('grantBundleAccess error (pago ya confirmado):', grantErr.message)
+          }
           console.log(`Clip webhook procesado (directory): clip_order_id=${clipPaymentRequestId}`)
           return res.sendStatus(200)
         }
-        // Sin match: no es una compra del directorio (o ya estaba paid) —
-        // sigue de largo al flujo de suscripción/cv_pack de abajo.
+        // Sin match: no es esta compra (o ya estaba paid) — sigue de largo
+        // al flujo del plan ($99/30 días vía link hospedado) de abajo.
       } catch (err) {
         console.error('Clip webhook (directory) error:', err)
         return res.status(500).json({ error: 'Internal error' })

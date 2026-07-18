@@ -179,10 +179,27 @@ create table if not exists hrm_directory_purchases (
   order_ref       text not null unique,
   status          text not null default 'pending' check (status in ('pending','paid')),
   clip_order_id   text,
-  download_token  text unique,
-  downloaded_at   timestamptz,
+  download_token  text unique,   -- deprecado 18 jul 2026, ver nota abajo
+  downloaded_at   timestamptz,   -- deprecado 18 jul 2026, ver nota abajo
   amount          int default 99,
   created_at      timestamptz default now()
 );
 -- Sin RLS: solo se accede desde el backend con service_role (no hay sesión
--- de usuario que lo posea, es un comprador anónimo).
+-- de usuario que lo posea al momento de comprar — se le crea una al pagar,
+-- ver columnas de abajo).
+
+-- 18 jul 2026: la compra suelta ($99, solo correo) dejó de entregar un
+-- Excel de un solo uso y ahora da acceso completo de 30 días a la app
+-- (directorio + ATS Checker + LinkedIn Score), sin pedir contraseña. Al
+-- confirmarse el pago se crea (o reusa) una cuenta de auth.users para ese
+-- correo vía supabase.auth.admin.generateLink, y se activa el plan en
+-- hrm_subscriptions para user_id. magic_token_hash es de un solo uso y
+-- expira rápido (Supabase Auth) — el frontend lo consume con
+-- supabase.auth.verifyOtp({ token_hash, type: 'magiclink' }) para loguear
+-- sin contraseña. download_token/downloaded_at ya no se usan para nada
+-- nuevo (se dejan por historial de compras previas al cambio).
+do $$ begin
+  begin alter table hrm_directory_purchases add column user_id          uuid references auth.users(id); exception when duplicate_column then null; end;
+  begin alter table hrm_directory_purchases add column magic_token_hash text;                             exception when duplicate_column then null; end;
+  begin alter table hrm_directory_purchases add column magic_token_type text default 'magiclink';         exception when duplicate_column then null; end;
+end $$;

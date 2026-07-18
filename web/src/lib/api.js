@@ -98,6 +98,10 @@ export const hrmAPI = {
   // Billing Clip — plan único $99 MXN / 30 días
   getBillingStatus:      ()          => api.get('/api/hrm/billing/status'),
   startBundleCheckout:   ()          => api.post('/api/hrm/billing/checkout-bundle'),
+
+  // Descarga del directorio completo dentro de la app (requiere plan activo).
+  // responseType: 'blob' porque es un archivo binario, no JSON.
+  downloadDirectoryExcel: ()         => api.get('/api/hrm/directory/download', { responseType: 'blob' }),
 }
 
 // ── Venta suelta del directorio ($99, landing pública sin cuenta) ──────────
@@ -106,7 +110,6 @@ export const directoryAPI = {
   checkout: (email)     => api.post('/api/hrm/directory/checkout', { email }),
   status:   (orderRef)  => api.get(`/api/hrm/directory/status/${orderRef}`),
   lookup:   (email)     => api.get('/api/hrm/directory/lookup', { params: { email } }),
-  downloadUrl: (token)  => `${env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || ''}/api/hrm/directory/download/${token}`,
 }
 
 export default api
