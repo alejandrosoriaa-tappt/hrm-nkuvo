@@ -125,6 +125,49 @@ do $$ begin
   begin alter table hrm_subscriptions add column cv_pack_order_id     text;        exception when duplicate_column then null; end;
 end $$;
 
+-- ── Plan único $99 MXN / 30 días (18 jul 2026) ─────────────────────────────
+-- Reemplaza el modelo anterior (Pro $299/mes + pack CV IA $149 sueltos):
+-- un solo pago único de $99 da acceso a TODO (directorio completo, ATS
+-- Checker con IA hasta 5x/mes, LinkedIn Score con IA) durante 30 días.
+-- No es suscripción recurrente en Clip — al vencer, el usuario paga de
+-- nuevo si quiere seguir. status/current_period_end ya existían y se
+-- reusan; current_period_start es nuevo (marca el inicio de la ventana de
+-- 30 días, para poder contar el uso de IA "5x/mes" desde ahí).
+do $$ begin
+  begin alter table hrm_subscriptions add column current_period_start timestamptz; exception when duplicate_column then null; end;
+end $$;
+
+-- Contador de usos de funciones con IA limitadas dentro del plan (ej. ATS
+-- Checker con IA: 5x/mes). Se cuenta con created_at >= current_period_start.
+create table if not exists hrm_usage_events (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  kind        text not null check (kind in ('ats_rewrite','linkedin_ai')),
+  created_at  timestamptz default now()
+);
+alter table hrm_usage_events enable row level security;
+create policy "own_usage_events" on hrm_usage_events for all using (auth.uid() = user_id);
+
+-- ── LinkedIn Score ──────────────────────────────────────────────────────
+-- Un perfil "activo" por usuario (se sobreescribe al volver a subir/pegar).
+-- El score heurístico (gratis) usa solo texto; el análisis por industria
+-- con IA requiere plan activo. Ver web/src/pages/MetodologiaLinkedInPage.jsx
+-- para la metodología pública de estos criterios.
+create table if not exists hrm_linkedin_profiles (
+  user_id            uuid primary key references auth.users(id) on delete cascade,
+  storage_path       text,           -- PDF exportado de LinkedIn en bucket 'linkedin' (o null si fue texto pegado)
+  raw_text           text not null,  -- texto plano extraído (o pegado directamente)
+  industria          text,           -- industria elegida por el usuario para el análisis con IA
+  heuristic_score    int,
+  heuristic_checks   jsonb,
+  ai_suggestions     jsonb,
+  ai_generated_at    timestamptz,
+  created_at         timestamptz default now(),
+  updated_at         timestamptz default now()
+);
+alter table hrm_linkedin_profiles enable row level security;
+create policy "own_linkedin_profile" on hrm_linkedin_profiles for all using (auth.uid() = user_id);
+
 -- ── Venta suelta del directorio ($99 MXN, pago único, SIN cuenta) ──────────
 -- Landing pública /directorio: solo correo + pago con Clip, sin login. El
 -- comprador nunca se vuelve un usuario de auth.users — se identifica por

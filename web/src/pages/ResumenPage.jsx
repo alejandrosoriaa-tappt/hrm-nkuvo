@@ -126,7 +126,7 @@ export default function ResumenPage() {
           <TrendingUp size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
           <span>
             Tienes <strong>5 contactos con datos completos</strong> en el plan gratuito.
-            Para desbloquear más, actualiza a Pro por $299 MXN/mes.
+            Para desbloquear más, obtén el plan completo por $99 MXN / 30 días.
           </span>
         </div>
       )}

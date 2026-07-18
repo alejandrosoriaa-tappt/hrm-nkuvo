@@ -89,7 +89,7 @@ export default function ReclutadorasPage() {
           <h1 className="page-title">Directorio de reclutadores</h1>
           <p className="page-subtitle">
             {quota?.isPro || sub?.status === 'active'
-              ? 'Plan Pro: acceso completo a todos los datos de contacto'
+              ? 'Plan activo: acceso completo a todos los datos de contacto'
               : `Plan gratuito: hasta ${quota?.limit ?? 5} reclutadores con datos y ${quota?.limit ?? 5} en seguimiento${
                   quota && !quota.isPro ? ` · ${quota.count}/${quota.limit} contactos` : ''
                 }`}
@@ -190,10 +190,10 @@ export default function ReclutadorasPage() {
                       <span>
                         {atContactLimit && !isLocked
                           ? `Alcanzaste el límite de ${quota.limit} contactos del plan gratuito.`
-                          : `Contacto disponible para los primeros ${quota?.limit ?? 5} reclutadores o con plan Pro.`}
+                          : `Contacto disponible para los primeros ${quota?.limit ?? 5} reclutadores o con el plan de $99 / 30 días.`}
                       </span>
                       <Link to="/app/membresia" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start' }}>
-                        <CreditCard size={13} /> Suscribirme
+                        <CreditCard size={13} /> Ver plan
                       </Link>
                     </div>
                   ) : selected.email ? (
@@ -214,7 +214,7 @@ export default function ReclutadorasPage() {
                   {cannotAdd ? (
                     <Link to="/app/membresia" className="btn btn-primary btn-sm w-full">
                       <Lock size={14} />
-                      {atContactLimit && !isLocked ? 'Límite de contactos — ver Pro' : 'Suscribirme para agregar'}
+                      {atContactLimit && !isLocked ? 'Límite de contactos — ver plan' : 'Ver plan para agregar'}
                     </Link>
                   ) : (
                     <button

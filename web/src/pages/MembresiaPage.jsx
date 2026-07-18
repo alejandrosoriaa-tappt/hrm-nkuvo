@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CreditCard, MessageCircle, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
+import { CreditCard, CheckCircle2, AlertCircle } from 'lucide-react'
 import { hrmAPI } from '../lib/api.js'
 
 const WA_SUPPORT = 'https://wa.me/5215658732336'
@@ -8,9 +8,6 @@ export default function MembresiaPage() {
   const [billing, setBilling] = useState(null)
   const [billingLoading, setBillingLoading] = useState(true)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
-  const [cvPackLoading, setCvPackLoading] = useState(false)
-  const [cancelLoading, setCancelLoading] = useState(false)
-  const [cancelDone, setCancelDone] = useState(null)
   const [billingError, setBillingError] = useState(null)
 
   useEffect(() => {
@@ -24,38 +21,11 @@ export default function MembresiaPage() {
     setCheckoutLoading(true)
     setBillingError(null)
     try {
-      const r = await hrmAPI.startCheckout()
+      const r = await hrmAPI.startBundleCheckout()
       window.location.href = r.data.checkoutUrl
     } catch (err) {
       setBillingError(err.response?.data?.error || err.message)
       setCheckoutLoading(false)
-    }
-  }
-
-  const handleBuyCvPack = async () => {
-    setCvPackLoading(true)
-    setBillingError(null)
-    try {
-      const r = await hrmAPI.startCvPackCheckout()
-      window.location.href = r.data.checkoutUrl
-    } catch (err) {
-      setBillingError(err.response?.data?.error || err.message)
-      setCvPackLoading(false)
-    }
-  }
-
-  const handleCancel = async () => {
-    if (!window.confirm('¿Confirmas que quieres cancelar tu suscripción? Tu acceso Pro se mantiene hasta el fin del periodo pagado.')) return
-    setCancelLoading(true)
-    setBillingError(null)
-    try {
-      const r = await hrmAPI.cancelSubscription()
-      setCancelDone(r.data)
-      setBilling(prev => ({ ...prev, cancel_requested_at: new Date().toISOString() }))
-    } catch (err) {
-      setBillingError(err.response?.data?.error || err.message)
-    } finally {
-      setCancelLoading(false)
     }
   }
 
@@ -64,7 +34,7 @@ export default function MembresiaPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Membresía</h1>
-          <p className="page-subtitle">Gestiona tu plan y desbloquea contacto ilimitado con reclutadores</p>
+          <p className="page-subtitle">Un solo plan: directorio completo, ATS Checker y LinkedIn Score con IA</p>
         </div>
       </div>
 
@@ -77,18 +47,9 @@ export default function MembresiaPage() {
           ) : billingError && !billing ? (
             <BillingError error={billingError} />
           ) : billing?.isActive ? (
-            <ActivePlan billing={billing} cancelLoading={cancelLoading} cancelDone={cancelDone} onCancel={handleCancel} />
-          ) : billing?.status === 'past_due' ? (
-            <PastDuePlan billing={billing} checkoutLoading={checkoutLoading} onSubscribe={handleSubscribe} billingError={billingError} />
+            <ActivePlan billing={billing} checkoutLoading={checkoutLoading} onRenew={handleSubscribe} billingError={billingError} />
           ) : (
-            <FreePlan
-              checkoutLoading={checkoutLoading}
-              onSubscribe={handleSubscribe}
-              billingError={billingError}
-              hasCvPack={billing?.hasCvPack}
-              cvPackLoading={cvPackLoading}
-              onBuyCvPack={handleBuyCvPack}
-            />
+            <FreePlan checkoutLoading={checkoutLoading} onSubscribe={handleSubscribe} billingError={billingError} />
           )}
         </div>
       </div>
@@ -96,58 +57,26 @@ export default function MembresiaPage() {
   )
 }
 
-function FreePlan({ checkoutLoading, onSubscribe, billingError, hasCvPack, cvPackLoading, onBuyCvPack }) {
+function FreePlan({ checkoutLoading, onSubscribe, billingError }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <span className="chip">Plan Gratuito</span>
         <span style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
-          Contacto desbloqueado para los primeros 5 reclutadores
+          Contacto desbloqueado para los primeros 5 reclutadores · Score ATS y LinkedIn básicos gratis
         </span>
       </div>
 
       <div style={{ background: 'var(--md-surface-container-low)', borderRadius: 12, padding: '1rem' }}>
         <p style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--md-on-surface)', marginBottom: '0.5rem' }}>
-          CV IA + ATS Checker — $149 MXN<span style={{ fontSize: '0.875rem', fontWeight: 400 }}> pago único</span>
+          Plan completo — $99 MXN<span style={{ fontSize: '0.875rem', fontWeight: 400 }}> / 30 días</span>
         </p>
         <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.375rem', marginBottom: '1rem' }}>
           {[
-            'Cómo arreglar cada problema que detecta el ATS Checker',
-            'Sugerencias de reescritura de tu CV con IA',
-            'Pago único — no es mensualidad, no vence',
-          ].map(f => (
-            <li key={f} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
-              <CheckCircle2 size={14} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
-              {f}
-            </li>
-          ))}
-        </ul>
-
-        {hasCvPack ? (
-          <span className="chip chip-success">
-            <CheckCircle2 size={12} /> Ya lo tienes
-          </span>
-        ) : (
-          <button
-            className="btn btn-outline w-full"
-            onClick={onBuyCvPack}
-            disabled={cvPackLoading}
-          >
-            {cvPackLoading ? <span className="spinner spinner-sm" /> : <CreditCard size={16} />}
-            {cvPackLoading ? 'Redirigiendo a Clip…' : 'Comprar por $149 (pago único)'}
-          </button>
-        )}
-      </div>
-
-      <div style={{ background: 'var(--md-surface-container-low)', borderRadius: 12, padding: '1rem' }}>
-        <p style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--md-on-surface)', marginBottom: '0.5rem' }}>
-          Pro — $299 MXN<span style={{ fontSize: '0.875rem', fontWeight: 400 }}>/mes</span>
-        </p>
-        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.375rem', marginBottom: '1rem' }}>
-          {[
-            'Acceso ilimitado a datos de contacto de todos los reclutadores',
-            'Sin límite en contactos desbloqueados',
-            'Cancela cuando quieras — sin penalización',
+            'Contacto completo de todas las reclutadoras del directorio',
+            'ATS Checker con IA — hasta 5 usos por periodo',
+            'LinkedIn Score con IA por industria — hasta 5 usos por periodo',
+            'Pago único de 30 días — sin mensualidad automática, pagas de nuevo solo si quieres seguir',
           ].map(f => (
             <li key={f} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
               <CheckCircle2 size={14} style={{ color: 'var(--md-primary)', flexShrink: 0 }} />
@@ -164,7 +93,7 @@ function FreePlan({ checkoutLoading, onSubscribe, billingError, hasCvPack, cvPac
           disabled={checkoutLoading}
         >
           {checkoutLoading ? <span className="spinner spinner-sm" /> : <CreditCard size={16} />}
-          {checkoutLoading ? 'Redirigiendo a Clip…' : 'Suscribirme por $299/mes'}
+          {checkoutLoading ? 'Redirigiendo a Clip…' : 'Obtener el plan por $99 (30 días)'}
         </button>
 
         <p style={{ fontSize: '0.6875rem', color: 'var(--md-on-surface-variant)', marginTop: '0.625rem', textAlign: 'center' }}>
@@ -177,18 +106,22 @@ function FreePlan({ checkoutLoading, onSubscribe, billingError, hasCvPack, cvPac
   )
 }
 
-function ActivePlan({ billing, cancelLoading, cancelDone, onCancel }) {
+function ActivePlan({ billing, checkoutLoading, onRenew, billingError }) {
   const periodEnd = billing.current_period_end
-    ? new Date(billing.current_period_end).toLocaleDateString('es-MX', { dateStyle: 'long' })
+    ? new Date(billing.current_period_end)
     : null
-
-  const hasCancelRequest = !!billing.cancel_requested_at
+  const periodEndLabel = periodEnd
+    ? periodEnd.toLocaleDateString('es-MX', { dateStyle: 'long' })
+    : null
+  const daysRemaining = periodEnd
+    ? Math.max(0, Math.ceil((periodEnd - new Date()) / (1000 * 60 * 60 * 24)))
+    : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <span className="chip chip-success">
-          <CheckCircle2 size={12} /> Plan Pro Activo
+          <CheckCircle2 size={12} /> Plan activo
         </span>
         {billing.clip_customer_email && (
           <span style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)' }}>
@@ -197,73 +130,48 @@ function ActivePlan({ billing, cancelLoading, cancelDone, onCancel }) {
         )}
       </div>
 
-      {periodEnd && (
+      {periodEndLabel && (
         <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
-          Próxima renovación: <strong style={{ color: 'var(--md-on-surface)' }}>{periodEnd}</strong>
-          {' '}— se renueva automáticamente cada mes.
+          Vence el <strong style={{ color: 'var(--md-on-surface)' }}>{periodEndLabel}</strong>
+          {daysRemaining != null && <> — {daysRemaining} {daysRemaining === 1 ? 'día' : 'días'} restantes</>}.
+          No se renueva sola: si quieres seguir, pagas de nuevo cuando venza.
         </p>
       )}
 
-      {hasCancelRequest || cancelDone ? (
-        <div className="alert alert-info" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-            <Clock size={15} /> Cancelación solicitada
-          </div>
-          <p style={{ fontSize: '0.8125rem' }}>
-            Recibimos tu solicitud. El equipo de NKUVO la procesará en el panel de Clip y
-            recibirás confirmación. Tu acceso Pro se mantiene hasta {periodEnd || 'el fin del periodo pagado'}.
-          </p>
-          <a href={WA_SUPPORT} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm">
-            <MessageCircle size={13} /> Confirmar por WhatsApp
-          </a>
-        </div>
-      ) : (
-        <div>
-          <button
-            className="btn btn-danger btn-sm"
-            onClick={onCancel}
-            disabled={cancelLoading}
-          >
-            {cancelLoading ? <span className="spinner spinner-sm" /> : null}
-            {cancelLoading ? 'Procesando…' : 'Cancelar suscripción'}
-          </button>
-          <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '0.5rem' }}>
-            Al cancelar mantendrás el acceso Pro hasta el fin del periodo pagado. Sin cobros adicionales.
-          </p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function PastDuePlan({ billing, checkoutLoading, onSubscribe, billingError }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div className="alert alert-error">
-        <AlertCircle size={15} style={{ flexShrink: 0 }} />
-        <div>
-          <p style={{ fontWeight: 600 }}>Pago pendiente</p>
-          <p style={{ fontSize: '0.8125rem', marginTop: '2px' }}>
-            El último cobro de tu suscripción no fue exitoso. Actualiza tu método de pago
-            suscribiéndote de nuevo.
-          </p>
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {billing.atsUsage && (
+          <UsageBar label="ATS Checker con IA" used={billing.atsUsage.used} limit={billing.atsUsage.limit} />
+        )}
+        {billing.linkedinUsage && (
+          <UsageBar label="LinkedIn Score con IA" used={billing.linkedinUsage.used} limit={billing.linkedinUsage.limit} />
+        )}
       </div>
 
       {billingError && <BillingError error={billingError} />}
 
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={onSubscribe}
-          disabled={checkoutLoading}
-        >
+      <div>
+        <button className="btn btn-outline btn-sm" onClick={onRenew} disabled={checkoutLoading}>
           {checkoutLoading ? <span className="spinner spinner-sm" /> : <CreditCard size={14} />}
-          Reactivar suscripción
+          {checkoutLoading ? 'Redirigiendo…' : 'Renovar / extender 30 días más'}
         </button>
-        <a href={WA_SUPPORT} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm">
-          <MessageCircle size={14} /> Soporte WhatsApp
-        </a>
+        <p style={{ fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginTop: '0.5rem' }}>
+          Renovar antes de que venza reinicia tu periodo de 30 días y tus usos de IA.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function UsageBar({ label, used, limit }) {
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--md-on-surface-variant)', marginBottom: '0.25rem' }}>
+        <span>{label}</span>
+        <span>{used}/{limit}</span>
+      </div>
+      <div style={{ height: 6, borderRadius: 4, background: 'var(--md-surface-container-low)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: 'var(--md-primary)', borderRadius: 4 }} />
       </div>
     </div>
   )

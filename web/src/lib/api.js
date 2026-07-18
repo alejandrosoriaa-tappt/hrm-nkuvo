@@ -73,8 +73,19 @@ export const hrmAPI = {
   }),
   deleteCv:              (id)        => api.delete(`/api/hrm/cvs/${id}`),
   checkCvAts:            (id)        => api.post(`/api/hrm/cvs/${id}/ats-check`),
-  // Sugerir con IA: formato/estructura ATS (Pro). Mantiene path /rewrite por compatibilidad.
+  // Sugerir con IA: formato/estructura ATS (plan $99/30 días, 5 usos/mes).
   rewriteCv:             (id, contexto) => api.post(`/api/hrm/cvs/${id}/rewrite`, { contexto }),
+
+  // LinkedIn Score — un perfil activo por usuario (PDF exportado o texto pegado)
+  getLinkedinProfile:    ()          => api.get('/api/hrm/linkedin'),
+  uploadLinkedinProfile: (formData)  => api.post('/api/hrm/linkedin', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  pasteLinkedinProfile:  (texto)     => api.post('/api/hrm/linkedin', { texto }),
+  deleteLinkedinProfile: ()          => api.delete('/api/hrm/linkedin'),
+  scoreLinkedinProfile:  ()          => api.post('/api/hrm/linkedin/score'),
+  // Análisis por industria con IA (plan $99/30 días, 5 usos/mes)
+  suggestLinkedinAi:     (industria) => api.post('/api/hrm/linkedin/ai-suggest', { industria }),
 
   // Agenda / citas
   listAppointments:      (params)    => api.get('/api/hrm/appointments', { params }),
@@ -84,11 +95,9 @@ export const hrmAPI = {
   // Suscripción (estado simple — usado en Resumen y Reclutadoras)
   getSubscription:       ()          => api.get('/api/hrm/subscription'),
 
-  // Billing Clip
+  // Billing Clip — plan único $99 MXN / 30 días
   getBillingStatus:      ()          => api.get('/api/hrm/billing/status'),
-  startCheckout:         ()          => api.post('/api/hrm/billing/checkout'),
-  startCvPackCheckout:   ()          => api.post('/api/hrm/billing/checkout-cv-pack'),
-  cancelSubscription:    ()          => api.post('/api/hrm/billing/cancel'),
+  startBundleCheckout:   ()          => api.post('/api/hrm/billing/checkout-bundle'),
 }
 
 // ── Venta suelta del directorio ($99, landing pública sin cuenta) ──────────

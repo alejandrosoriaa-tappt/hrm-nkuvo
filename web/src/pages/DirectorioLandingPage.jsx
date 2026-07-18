@@ -4,7 +4,7 @@ import {
   CheckCircle2, AlertCircle, CreditCard, ShieldCheck, Lock,
   Download, Search, Zap, BadgeCheck, Ban, Clock, GraduationCap, Briefcase,
   UserX, RefreshCw, ArrowDown, MousePointerClick, PackageCheck, Star, Users,
-  Calendar, MessageSquare, ListChecks,
+  Calendar, MessageSquare, ListChecks, Sparkles, Linkedin,
 } from 'lucide-react'
 import { directoryAPI } from '../lib/api.js'
 import { ORDER_REF_KEY } from './directoryOrderRef.js'
@@ -36,7 +36,7 @@ const FAQS = [
   },
   {
     q: '¿El archivo se actualiza después de la compra?',
-    a: 'No — es una fotografía del directorio al momento de tu compra. Si prefieres la versión siempre actualizada más contacto ilimitado en la app, existe el plan Pro por $299/mes.',
+    a: 'No — es una fotografía del directorio al momento de tu compra. Si prefieres la versión siempre actualizada más contacto ilimitado en la app, existe el plan de HRM NKUVO por $99 MXN / 30 días.',
   },
   {
     q: 'Pagué pero Clip no me regresó a la descarga, ¿qué hago?',
@@ -622,20 +622,23 @@ export default function DirectorioLandingPage() {
           </button>
         </div>
 
-        {/* ── Cross-sell a HRM Pro — el directorio es la puerta de entrada,
+        {/* ── Cross-sell al plan HRM — el directorio es la puerta de entrada,
             no el negocio en sí. Solo features que YA existen en la app. ── */}
         <div className="card" style={{ marginTop: '2rem', maxWidth: 640, marginInline: 'auto', padding: '1.75rem' }}>
           <p style={{ fontWeight: 800, fontSize: '1.0625rem', color: 'var(--md-on-surface)', marginBottom: '0.375rem' }}>
             ¿Y ahora qué hago con estos contactos?
           </p>
           <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)', marginBottom: '1rem' }}>
-            El directorio es solo el primer paso. HRM Pro te ayuda a llevar el seguimiento de cada contacto:
+            El directorio es solo el primer paso. El plan de HRM NKUVO te ayuda con todo lo demás,
+            un solo pago de $99 MXN por 30 días:
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.625rem', marginBottom: '1.25rem' }}>
             {[
               { icon: ListChecks,     text: 'Guarda y da seguimiento a cada reclutadora que contactaste' },
               { icon: MessageSquare,  text: 'Plantillas de mensajes listas para copiar y pegar' },
               { icon: Calendar,       text: 'Agenda tus entrevistas y citas de seguimiento' },
+              { icon: Sparkles,       text: 'ATS Checker con IA — hasta 5 veces por periodo' },
+              { icon: Linkedin,       text: 'LinkedIn Score con IA por industria — hasta 5 veces por periodo' },
             ].map(({ icon: Icon, text }) => (
               <div key={text} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
                 <Icon size={15} style={{ color: 'var(--md-primary)', flexShrink: 0, marginTop: 2 }} />
@@ -644,7 +647,7 @@ export default function DirectorioLandingPage() {
             ))}
           </div>
           <Link to="/signup" className="btn btn-outline" style={{ fontSize: '0.8125rem' }}>
-            Conoce HRM Pro — $299/mes
+            Conoce el plan HRM — $99 MXN / 30 días
           </Link>
         </div>
 

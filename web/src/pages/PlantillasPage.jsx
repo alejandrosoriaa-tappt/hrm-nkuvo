@@ -135,10 +135,10 @@ export default function PlantillasPage() {
       {isPro === false && (
         <div className="alert alert-info" style={{ marginBottom: '1.5rem', maxWidth: 640, flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
           <p style={{ fontSize: '0.8125rem' }}>
-            Las plantillas completas son parte del plan Pro. Suscríbete para desbloquear el texto y copiarlo.
+            Las plantillas completas son parte del plan ($99 MXN / 30 días). Obtenlo para desbloquear el texto y copiarlo.
           </p>
           <Link to="/app/membresia" className="btn btn-primary btn-sm">
-            <CreditCard size={13} /> Suscribirme
+            <CreditCard size={13} /> Ver plan
           </Link>
         </div>
       )}
@@ -169,7 +169,7 @@ export default function PlantillasPage() {
                 </button>
               ) : (
                 <Link to="/app/membresia" className="btn btn-outline btn-sm" style={{ flexShrink: 0 }}>
-                  <Lock size={14} /> Suscribirme
+                  <Lock size={14} /> Ver plan
                 </Link>
               )}
             </div>
@@ -218,7 +218,7 @@ export default function PlantillasPage() {
                   gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600,
                   color: 'var(--md-on-surface-variant)',
                 }}>
-                  <Lock size={14} /> Disponible con plan Pro
+                  <Lock size={14} /> Disponible con el plan
                 </div>
               </div>
             )}

@@ -7,6 +7,7 @@ import ContactosPage from './pages/ContactosPage.jsx'
 import CalendarioPage from './pages/CalendarioPage.jsx'
 import ReclutadorasPage from './pages/ReclutadorasPage.jsx'
 import CvsPage from './pages/CvsPage.jsx'
+import LinkedInPage from './pages/LinkedInPage.jsx'
 import PlantillasPage from './pages/PlantillasPage.jsx'
 import OportunidadesPage from './pages/OportunidadesPage.jsx'
 import NotasPage from './pages/NotasPage.jsx'
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="calendario"      element={<CalendarioPage />} />
           <Route path="reclutadoras"    element={<ReclutadorasPage />} />
           <Route path="cvs"             element={<CvsPage />} />
+          <Route path="linkedin"        element={<LinkedInPage />} />
           <Route path="plantillas"      element={<PlantillasPage />} />
           <Route path="oportunidades"   element={<OportunidadesPage />} />
           <Route path="notas"           element={<NotasPage />} />

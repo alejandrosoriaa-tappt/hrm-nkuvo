@@ -12,8 +12,12 @@ import {
   getFreeContactLimit,
   countUserUnlocks,
   assertCanCreateContact,
+  checkUsageLimit,
+  recordUsageEvent,
+  AI_USAGE_MONTHLY_LIMIT,
 } from '../lib/subscription.js'
 import { extractCvText } from '../lib/cvText.js'
+import { extractLinkedinText } from '../lib/linkedinText.js'
 import {
   anthropicEnabled,
   createAnthropicMessage,
@@ -54,6 +58,16 @@ const upload = multer({
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
       .includes(file.mimetype)
     cb(ok ? null : new Error('Solo PDF o DOCX'), ok)
+  }
+})
+
+// Multer para el PDF exportado de LinkedIn ("Más" → "Guardar en PDF") — solo PDF.
+const uploadLinkedin = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = file.mimetype === 'application/pdf'
+    cb(ok ? null : new Error('Solo PDF'), ok)
   }
 })
 
@@ -559,13 +573,29 @@ function buildHeuristicAtsSuggestions(analysis) {
 router.post('/cvs/:id/rewrite', async (req, res) => {
   const userId = req.user.id
 
-  // Pro o pack CV IA + ATS Checker ($149 pago único) tienen acceso.
+  // Requiere plan activo ($99 MXN / 30 días) — o el viejo pack CV IA ($149,
+  // descontinuado) para quien ya lo compró.
   const hasAccess = await hasCvPackAccess(supabase, userId, req.user.email)
   if (!hasAccess) {
     return res.status(403).json({
-      error: 'Sugerencias con IA disponibles en Pro o en el pack CV IA + ATS Checker ($149).',
+      error: 'Sugerencias con IA disponibles con el plan de $99 MXN / 30 días.',
       locked: true,
     })
+  }
+
+  // Límite de 5 usos por periodo de 30 días (solo aplica a quien tiene el
+  // plan activo — el viejo pack de por vida no está limitado).
+  const isPlanActive = await isProUser(supabase, userId, req.user.email)
+  if (isPlanActive) {
+    const usage = await checkUsageLimit(supabase, { userId, email: req.user.email, kind: 'ats_rewrite' })
+    if (!usage.allowed) {
+      return res.status(403).json({
+        error: `Alcanzaste el límite de ${usage.limit} usos de "Sugerir con IA" este periodo (${usage.used}/${usage.limit}). Se reinicia cuando renueves tu plan.`,
+        locked: true,
+        reason: 'usage_limit',
+        usage,
+      })
+    }
   }
 
   const { data: cv, error: fetchErr } = await supabase
@@ -691,6 +721,295 @@ ${truncatedText}
     })
     .eq('id', cv.id)
 
+  // Solo cuenta contra el límite de 5/mes si de verdad se generó una
+  // sugerencia (no el atajo de "ya está en 100%" de arriba, que no gasta nada).
+  if (isPlanActive) {
+    await recordUsageEvent(supabase, userId, 'ats_rewrite')
+  }
+
+  res.json(normalized)
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// LinkedIn Score — completitud + buenas prácticas del perfil (gratis) y
+// análisis por industria con IA (plan $99/30 días). Ver metodología pública
+// en /metodologia-linkedin (web/src/pages/MetodologiaLinkedInPage.jsx).
+// Un solo perfil "activo" por usuario — volver a subir/pegar lo reemplaza.
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Checks heurísticos de completitud, basados en el criterio público "All-Star"
+ * de LinkedIn (foto, resumen, experiencia, educación, aptitudes, ubicación) +
+ * estructura legible. No mide el algoritmo de ranking real de LinkedIn — eso
+ * no es público (ver metodología).
+ */
+function analyzeLinkedinProfile(text) {
+  const textLower = (text || '').toLowerCase()
+  const wordCount = (text.match(/\S+/g) || []).length
+  const checks = []
+
+  checks.push({
+    name: 'Sección "Acerca de" / "About"',
+    passed: /acerca de|about/i.test(text) && wordCount > 80,
+    issue: null,
+    fix: 'Agrega o amplía tu "Acerca de": 3-5 párrafos que resuman tu trayectoria y lo que buscas.',
+  })
+
+  const hasExperience = /experiencia|experience/i.test(text)
+  const yearMatches = (text.match(/\b(19|20)\d{2}\b/g) || [])
+  checks.push({
+    name: 'Experiencia con fechas',
+    passed: hasExperience && yearMatches.length >= 2,
+    issue: null,
+    fix: 'Agrega al menos 2 experiencias con mes/año de inicio y fin (o "Presente").',
+  })
+
+  checks.push({
+    name: 'Educación',
+    passed: /educaci[oó]n|education|universidad|licenciatura/i.test(text),
+    issue: null,
+    fix: 'Agrega tu formación académica en la sección de Educación.',
+  })
+
+  const skillsMatches = (textLower.match(/aptitud|skill|competencia/g) || []).length
+  checks.push({
+    name: '5 o más aptitudes',
+    passed: skillsMatches >= 3, // proxy: el PDF exportado repite "aptitud"/"skill" por cada una listada
+    issue: null,
+    fix: 'Agrega al menos 5 aptitudes relevantes a tu industria — LinkedIn las usa para que te encuentren en búsquedas.',
+  })
+
+  checks.push({
+    name: 'Ubicación e industria configuradas',
+    passed: /ubicaci[oó]n|location|m[ée]xico|industria|industry/i.test(text),
+    issue: null,
+    fix: 'Completa tu ubicación e industria en la configuración de tu perfil.',
+  })
+
+  checks.push({
+    name: 'Titular con contenido (no solo tu puesto)',
+    passed: wordCount > 150,
+    issue: null,
+    fix: 'Escribe un titular que diga qué haces y para quién, no solo tu puesto actual (ej. "Gerente de Ventas | B2B Industrial | CDMX").',
+  })
+
+  checks.forEach(c => { if (!c.passed) c.issue = c.issue || `No se detectó: ${c.name.toLowerCase()}.` })
+
+  const passedCount = checks.filter(c => c.passed).length
+  const score = Math.round((passedCount / checks.length) * 100)
+  return { checks, score, passedCount, wordCount, totalChecks: checks.length }
+}
+
+router.post('/linkedin', uploadLinkedin.single('profile'), async (req, res) => {
+  const userId = req.user.id
+  const pastedText = typeof req.body?.texto === 'string' ? req.body.texto.trim() : ''
+
+  if (!req.file && !pastedText) {
+    return res.status(400).json({ error: 'Sube el PDF exportado de LinkedIn o pega el texto de tu perfil.' })
+  }
+
+  // Limpiar archivo anterior en Storage si existía (un solo perfil por usuario)
+  const { data: existing } = await supabase
+    .from('hrm_linkedin_profiles')
+    .select('storage_path')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (existing?.storage_path) {
+    await supabase.storage.from('linkedin').remove([existing.storage_path])
+  }
+
+  let storagePath = null
+  let rawText = pastedText
+
+  if (req.file) {
+    storagePath = `${userId}/${Date.now()}.pdf`
+    const { error: uploadErr } = await supabase.storage
+      .from('linkedin')
+      .upload(storagePath, req.file.buffer, { contentType: 'application/pdf', upsert: false })
+    if (uploadErr) return res.status(500).json({ error: uploadErr.message })
+
+    try {
+      rawText = await extractLinkedinText(supabase, { storage_path: storagePath })
+    } catch (err) {
+      await supabase.storage.from('linkedin').remove([storagePath])
+      return res.status(500).json({ error: err.message || 'Error extrayendo texto del PDF' })
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('hrm_linkedin_profiles')
+    .upsert({
+      user_id: userId,
+      storage_path: storagePath,
+      raw_text: rawText,
+      heuristic_score: null,
+      heuristic_checks: null,
+      ai_suggestions: null,
+      ai_generated_at: null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+    .select()
+    .single()
+  if (error) return res.status(500).json({ error: error.message })
+
+  res.status(201).json(data)
+})
+
+router.get('/linkedin', async (req, res) => {
+  const { data, error } = await supabase
+    .from('hrm_linkedin_profiles')
+    .select('*')
+    .eq('user_id', req.user.id)
+    .maybeSingle()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json(data || null)
+})
+
+router.delete('/linkedin', async (req, res) => {
+  const { data: existing } = await supabase
+    .from('hrm_linkedin_profiles')
+    .select('storage_path')
+    .eq('user_id', req.user.id)
+    .maybeSingle()
+  if (existing?.storage_path) {
+    await supabase.storage.from('linkedin').remove([existing.storage_path])
+  }
+  const { error } = await supabase
+    .from('hrm_linkedin_profiles')
+    .delete()
+    .eq('user_id', req.user.id)
+  if (error) return res.status(500).json({ error: error.message })
+  res.status(204).end()
+})
+
+// Score heurístico — gratis, sin IA (mismo espíritu que el ATS score).
+router.post('/linkedin/score', async (req, res) => {
+  const { data: profile, error: fetchErr } = await supabase
+    .from('hrm_linkedin_profiles')
+    .select('*')
+    .eq('user_id', req.user.id)
+    .maybeSingle()
+  if (fetchErr || !profile) return res.status(404).json({ error: 'Sube o pega tu perfil de LinkedIn primero.' })
+
+  const analysis = analyzeLinkedinProfile(profile.raw_text)
+
+  await supabase
+    .from('hrm_linkedin_profiles')
+    .update({ heuristic_score: analysis.score, heuristic_checks: analysis.checks })
+    .eq('user_id', req.user.id)
+
+  res.json({
+    score: analysis.score,
+    totalChecks: analysis.totalChecks,
+    passedChecks: analysis.passedCount,
+    checks: analysis.checks,
+  })
+})
+
+// Análisis por industria con IA — requiere plan activo ($99/30 días), 5 usos/mes.
+router.post('/linkedin/ai-suggest', async (req, res) => {
+  const userId = req.user.id
+  const industria = typeof req.body?.industria === 'string' ? req.body.industria.trim() : ''
+  if (!industria) return res.status(400).json({ error: 'Elige una industria para el análisis.' })
+
+  const hasAccess = await hasCvPackAccess(supabase, userId, req.user.email)
+  if (!hasAccess) {
+    return res.status(403).json({
+      error: 'Análisis de LinkedIn por industria disponible con el plan de $99 MXN / 30 días.',
+      locked: true,
+    })
+  }
+
+  const isPlanActive = await isProUser(supabase, userId, req.user.email)
+  if (isPlanActive) {
+    const usage = await checkUsageLimit(supabase, { userId, email: req.user.email, kind: 'linkedin_ai' })
+    if (!usage.allowed) {
+      return res.status(403).json({
+        error: `Alcanzaste el límite de ${usage.limit} análisis de LinkedIn con IA este periodo (${usage.used}/${usage.limit}). Se reinicia cuando renueves tu plan.`,
+        locked: true,
+        reason: 'usage_limit',
+        usage,
+      })
+    }
+  }
+
+  const { data: profile, error: fetchErr } = await supabase
+    .from('hrm_linkedin_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (fetchErr || !profile) return res.status(404).json({ error: 'Sube o pega tu perfil de LinkedIn primero.' })
+
+  if (!anthropicEnabled()) {
+    return res.status(503).json({ error: 'Análisis con IA no disponible en este momento.' })
+  }
+
+  const truncatedText = profile.raw_text.length > 14000
+    ? `${profile.raw_text.slice(0, 14000)}\n\n[…texto truncado por longitud…]`
+    : profile.raw_text
+
+  const systemPrompt = `Eres un experto en reclutamiento en México, dando una opinión experta (no una simulación del algoritmo real de LinkedIn, que es privado) sobre un perfil de LinkedIn para la industria "${industria}".
+
+OBLIGATORIO:
+- Evalúa qué tan bien el titular, el "Acerca de" y la experiencia comunican valor para reclutadores de esa industria específica.
+- Sugiere mejoras de redacción concretas (no inventes logros, empresas ni fechas que no estén en el texto).
+- Prioriza: uso de palabras clave de la industria, logros cuantificados, claridad del titular.
+- Responde ÚNICAMENTE con JSON válido (sin markdown), con esta forma exacta:
+{
+  "resumen": "2-3 frases: diagnóstico del perfil para esta industria",
+  "checklist": ["acción concreta 1", "acción concreta 2", "..."],
+  "sugerencias": [
+    {
+      "seccion": "ej. Titular / Acerca de / Experiencia",
+      "prioridad": "alta" | "media" | "baja",
+      "problema": "qué falta o no comunica bien para esta industria",
+      "accion": "instrucción clara de qué escribir",
+      "razon": "por qué importa para reclutadores de esta industria"
+    }
+  ]
+}`
+
+  const userPrompt = `Industria elegida: ${industria}
+
+Texto del perfil de LinkedIn:
+---
+${truncatedText}
+---`
+
+  let normalized
+  try {
+    const { rawText } = await createAnthropicMessage({
+      system: systemPrompt,
+      user: userPrompt,
+      max_tokens: 2500,
+      temperature: 0.3,
+    })
+    const aiResult = parseJsonFromModelText(rawText)
+    normalized = {
+      resumen: aiResult.resumen || 'Revisa las sugerencias para mejorar tu perfil frente a esta industria.',
+      checklist: Array.isArray(aiResult.checklist) ? aiResult.checklist : [],
+      sugerencias: Array.isArray(aiResult.sugerencias) ? aiResult.sugerencias : [],
+      industria,
+      source: 'anthropic',
+    }
+  } catch (err) {
+    console.error('LinkedIn AI suggest Anthropic error:', err?.message || err)
+    return res.status(502).json({ error: 'No se pudo generar el análisis. Intenta de nuevo en unos minutos.' })
+  }
+
+  await supabase
+    .from('hrm_linkedin_profiles')
+    .update({
+      industria,
+      ai_suggestions: normalized,
+      ai_generated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+
+  if (isPlanActive) {
+    await recordUsageEvent(supabase, userId, 'linkedin_ai')
+  }
+
   res.json(normalized)
 })
 
@@ -805,7 +1124,7 @@ router.put('/appointments/:id', async (req, res) => {
 
 // ── Suscripción ───────────────────────────────────────────────────────────
 router.get('/subscription', async (req, res) => {
-  const isDemoPro = await isProUser(supabase, req.user.id, req.user.email)
+  const isActive = await isProUser(supabase, req.user.id, req.user.email)
 
   const { data, error } = await supabase
     .from('hrm_subscriptions')
@@ -814,10 +1133,13 @@ router.get('/subscription', async (req, res) => {
     .maybeSingle()
   if (error) return res.status(500).json({ error: error.message })
 
-  if (isDemoPro && data?.status !== 'active') {
-    return res.json({ ...(data || {}), status: 'active', plan: 'demo' })
+  // isProUser ya valida current_period_end (pago único, sin renovación
+  // automática) — status crudo de la fila puede seguir en "active" aunque
+  // ya haya vencido, así que se corrige aquí antes de responder.
+  if (!isActive) {
+    return res.json({ ...(data || {}), status: 'free' })
   }
-  res.json(data || { status: 'free' })
+  res.json({ ...(data || {}), status: 'active', plan: data?.plan || 'demo' })
 })
 
 export default router
