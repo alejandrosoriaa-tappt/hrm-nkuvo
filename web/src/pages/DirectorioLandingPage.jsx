@@ -10,8 +10,11 @@ import { directoryAPI } from '../lib/api.js'
 import { ORDER_REF_KEY } from './directoryOrderRef.js'
 import { trackPurchaseOnce } from './DirectorioGraciasPage.jsx'
 
-// Actualizar si el directorio crece — ver db/seed_hrm_recruiters.sql
-const TOTAL_RECRUITERS = 147
+// El conteo real se pide a GET /api/hrm/directory/count (siempre refleja
+// hrm_recruiters en vivo, la misma tabla que arma el Excel de descarga).
+// FALLBACK_RECRUITERS es solo lo que se ve antes de que cargue el fetch o si
+// falla — un piso seguro que nunca sobreestima (ver db/seed_hrm_recruiters.sql).
+const FALLBACK_RECRUITERS = 140
 const UPDATED_LABEL = 'Actualizado julio 2026'
 
 // La preview de "así se ve por dentro" es una captura real (excel-preview.jpg)
@@ -51,7 +54,7 @@ const TRUST_CHIPS = [
 ]
 
 const HERO_FEATURES = [
-  { icon: BadgeCheck,          label: '147 reclutadoras verificadas',  text: 'Datos de contacto directos y actualizados.' },
+  { icon: BadgeCheck,          label: `${FALLBACK_RECRUITERS}+ reclutadoras verificadas`,  text: 'Datos de contacto directos y actualizados.' },
   { icon: Clock,                label: 'Ahorra semanas de búsqueda',    text: 'Todo lo que necesitas en un solo Excel.' },
   { icon: ShieldCheck,          label: 'Datos verificados',             text: 'Sin scraping. Información real y lista para usar.' },
   { icon: Download,             label: 'Descarga inmediata',            text: 'Recibe el Excel al instante después de tu pago.' },
@@ -64,7 +67,7 @@ const HERO_FEATURES = [
 const LAUNCH_PRICE_DEADLINE = 'julio 2026'
 
 const RECEIVES = [
-  '147 reclutadoras y agencias de colocación',
+  `${FALLBACK_RECRUITERS}+ reclutadoras y agencias de colocación`,
   'Correo directo de contacto',
   'Teléfono directo',
   'Sitio web oficial',
@@ -76,7 +79,7 @@ const RECEIVES = [
 
 const STEPS = [
   { icon: CreditCard,          title: 'Compras',   text: 'Un pago único de $99 MXN, procesado por Clip. Solo necesitas tu correo.' },
-  { icon: Download,            title: 'Descargas', text: 'El Excel con las 147 reclutadoras está listo al instante — una sola descarga.' },
+  { icon: Download,            title: 'Descargas', text: `El Excel con más de ${FALLBACK_RECRUITERS} reclutadoras está listo al instante — una sola descarga.` },
   { icon: MousePointerClick,   title: 'Contactas', text: 'Escribes directo a quien decide contratar, sin esperar a que una vacante te encuentre.' },
 ]
 
@@ -111,6 +114,21 @@ export default function DirectorioLandingPage() {
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState(null)
   const [lookupResult, setLookupResult] = useState(null) // { downloadToken, alreadyDownloaded }
+
+  // Conteo real desde la BD (GET /api/hrm/directory/count) — nunca se queda
+  // fijo en el código. rawCount es el número exacto (para aritmética como
+  // "+N reclutadoras más"); TOTAL_RECRUITERS es un piso redondeado a la
+  // decena hacia abajo ("140+", "150+"…) para el copy de marketing, así no
+  // hay que tocar código cada vez que el directorio crece.
+  const [rawCount, setRawCount] = useState(null)
+  const excelCount = rawCount ?? FALLBACK_RECRUITERS // número exacto, para aritmética
+  const TOTAL_RECRUITERS = Math.max(FALLBACK_RECRUITERS, Math.floor(excelCount / 10) * 10) // piso redondeado, para marketing
+
+  useEffect(() => {
+    directoryAPI.count()
+      .then(r => setRawCount(r.data?.count ?? null))
+      .catch(() => {}) // fallo silencioso: se queda en FALLBACK_RECRUITERS
+  }, [])
 
   // PageView base (index.html) no manda parámetros y no distingue ruta en
   // una SPA — este evento adicional con content_name sí permite filtrar
@@ -182,10 +200,10 @@ export default function DirectorioLandingPage() {
             {/* Copy + features */}
             <div style={{ flex: '1 1 380px', minWidth: 0 }}>
               <span className="chip chip-primary" style={{ marginBottom: '1rem' }}>
-                <Zap size={12} /> {TOTAL_RECRUITERS} reclutadoras verificadas · {UPDATED_LABEL}
+                <Zap size={12} /> {TOTAL_RECRUITERS}+ reclutadoras verificadas · {UPDATED_LABEL}
               </span>
               <h1 style={{ fontSize: 'clamp(2rem, 4.5vw, 2.875rem)', fontWeight: 800, lineHeight: 1.12, color: 'var(--md-on-surface)', letterSpacing: '-0.02em' }}>
-                Consigue el correo y teléfono de {TOTAL_RECRUITERS} reclutadoras <span style={{ color: 'var(--md-primary)' }}>antes que otros candidatos.</span>
+                Consigue el correo y teléfono de {TOTAL_RECRUITERS}+ reclutadoras <span style={{ color: 'var(--md-primary)' }}>antes que otros candidatos.</span>
               </h1>
               <p style={{ fontSize: '1.0625rem', color: 'var(--md-on-surface-variant)', marginTop: '1.125rem', maxWidth: 480, lineHeight: 1.55 }}>
                 Deja de esperar a que publiquen vacantes. <strong style={{ color: 'var(--md-on-surface)' }}>Escríbeles directamente hoy mismo</strong> —
@@ -348,7 +366,7 @@ export default function DirectorioLandingPage() {
         }}>
           <span style={{ fontWeight: 600, color: 'var(--md-on-surface)' }}>Ya están en el directorio: </span>
           Adecco · Manpower · Randstad · Korn Ferry · Michael Page · Boyden · Confisa Group · Coca Consultores ·{' '}
-          <span style={{ fontWeight: 600, color: 'var(--md-primary)' }}>+139 más</span>
+          <span style={{ fontWeight: 600, color: 'var(--md-primary)' }}>+{Math.max(0, excelCount - 8)} más</span>
         </p>
       </div>
 
@@ -364,10 +382,10 @@ export default function DirectorioLandingPage() {
             </h2>
             <span style={{ flex: 1 }} />
             <span className="chip chip-success"><CheckCircle2 size={12} /> {UPDATED_LABEL}</span>
-            <span className="chip chip-success">{TOTAL_RECRUITERS} registros</span>
+            <span className="chip chip-success">{TOTAL_RECRUITERS}+ registros</span>
           </div>
           <p style={{ fontSize: '0.875rem', color: 'var(--md-on-surface-variant)', marginBottom: '1.25rem', maxWidth: 640 }}>
-            Captura real de 10 de las {TOTAL_RECRUITERS} filas (correo y teléfono difuminados a propósito).
+            Captura real de 10 de las {excelCount} filas (correo y teléfono difuminados a propósito).
             El Excel completo trae correo, teléfono, sitio web, ciudad e industria de cada una.
           </p>
 
@@ -384,7 +402,7 @@ export default function DirectorioLandingPage() {
               display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '1rem',
             }}>
               <span className="chip chip-primary" style={{ fontSize: '0.8125rem', padding: '0.5rem 1.125rem', boxShadow: 'var(--shadow-2)' }}>
-                + {TOTAL_RECRUITERS - PREVIEW_ROWS_COUNT} reclutadoras más en tu descarga
+                + {excelCount - PREVIEW_ROWS_COUNT} reclutadoras más en tu descarga
               </span>
             </div>
           </div>
@@ -437,7 +455,7 @@ export default function DirectorioLandingPage() {
                 Comprar el directorio
               </p>
               {[
-                '147 reclutadoras ya verificadas y curadas',
+                `${FALLBACK_RECRUITERS}+ reclutadoras ya verificadas y curadas`,
                 'Correo, teléfono y sitio de cada una, listos',
                 'Registradas ante la STPS',
                 'Excel descargado en menos de 2 minutos',
@@ -607,7 +625,7 @@ export default function DirectorioLandingPage() {
         {/* ── CTA final ── */}
         <div style={{ marginTop: '3.5rem', textAlign: 'center', padding: '2.5rem 1.5rem', background: 'var(--md-primary)', borderRadius: 24 }}>
           <p style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--md-on-primary)', marginBottom: '0.5rem' }}>
-            147 reclutadoras te están esperando.
+            {TOTAL_RECRUITERS}+ reclutadoras te están esperando.
           </p>
           <p style={{ fontSize: '0.9375rem', color: 'var(--md-on-primary)', opacity: 0.9, marginBottom: '1.5rem' }}>
             Un pago único de $99 MXN. Descarga inmediata.

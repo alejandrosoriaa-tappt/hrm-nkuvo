@@ -102,6 +102,7 @@ export const hrmAPI = {
 
 // ── Venta suelta del directorio ($99, landing pública sin cuenta) ──────────
 export const directoryAPI = {
+  count:    ()           => api.get('/api/hrm/directory/count'),
   checkout: (email)     => api.post('/api/hrm/directory/checkout', { email }),
   status:   (orderRef)  => api.get(`/api/hrm/directory/status/${orderRef}`),
   lookup:   (email)     => api.get('/api/hrm/directory/lookup', { params: { email } }),

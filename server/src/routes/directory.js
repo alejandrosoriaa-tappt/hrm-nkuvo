@@ -122,6 +122,18 @@ router.post('/checkout', checkoutLimiter, async (req, res) => {
   }
 })
 
+// ── GET /count ─────────────────────────────────────────────────────────────
+// Conteo público del directorio para la landing (evita hardcodear el número
+// en el frontend — ver TOTAL_RECRUITERS en DirectorioLandingPage.jsx). Solo
+// el número, sin datos de reclutadoras — seguro de exponer sin auth.
+router.get('/count', async (req, res) => {
+  const { count, error } = await supabase
+    .from('hrm_recruiters')
+    .select('id', { count: 'exact', head: true })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ count: count || 0 })
+})
+
 // ── GET /status/:orderRef ─────────────────────────────────────────────────
 // La página de gracias hace polling aquí tras volver de Clip.
 router.get('/status/:orderRef', async (req, res) => {
