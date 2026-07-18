@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Download, AlertCircle, MessageCircle, CheckCircle2, ArrowRight } from 'lucide-react'
-import { directoryAPI, hrmAPI } from '../lib/api.js'
+import { AlertCircle, MessageCircle, CheckCircle2 } from 'lucide-react'
+import { directoryAPI } from '../lib/api.js'
 import supabase from '../lib/supabase.js'
 import { ORDER_REF_KEY } from './directoryOrderRef.js'
 
@@ -19,26 +19,10 @@ export function trackPurchaseOnce(dedupeKey) {
   localStorage.setItem(key, '1')
 }
 
-// Dispara la descarga del Excel usando el endpoint autenticado (blob), sin
-// salir de la página — mismo patrón que cualquier descarga con auth header.
-async function triggerDirectoryDownload() {
-  const r = await hrmAPI.downloadDirectoryExcel()
-  const url = window.URL.createObjectURL(new Blob([r.data]))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `directorio-reclutadoras-hrm-${new Date().toISOString().slice(0, 10)}.xlsx`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.URL.revokeObjectURL(url)
-}
-
 export default function DirectorioGraciasPage() {
   // polling | signing_in | ready | link_expired | timeout | error | missing_ref
   const [state, setState] = useState('polling')
   const [email, setEmail] = useState(null)
-  const [downloadError, setDownloadError] = useState(null)
-  const [downloading, setDownloading] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const pollStartRef = useRef(Date.now())
   const navigate = useNavigate()
@@ -54,7 +38,10 @@ export default function DirectorioGraciasPage() {
       setState('link_expired')
       return
     }
+    // Cero fricción: pagó → entra. Sin botón que apretar. Se deja un
+    // instante para que se alcance a leer "Ya tienes acceso" antes de saltar.
     setState('ready')
+    setTimeout(() => navigate('/app', { replace: true }), 900)
   }
 
   useEffect(() => {
@@ -104,18 +91,6 @@ export default function DirectorioGraciasPage() {
     }
   }
 
-  const handleDownload = async () => {
-    setDownloading(true)
-    setDownloadError(null)
-    try {
-      await triggerDirectoryDownload()
-    } catch (err) {
-      setDownloadError(err.response?.data?.error || err.message)
-    } finally {
-      setDownloading(false)
-    }
-  }
-
   return (
     <div className="auth-page">
       <div className="auth-card" style={{ maxWidth: 480 }}>
@@ -142,25 +117,9 @@ export default function DirectorioGraciasPage() {
             </p>
             <p style={{ fontSize: '0.8125rem', color: 'var(--md-on-surface-variant)' }}>
               Tu pago se confirmó y tu cuenta ya está activa por 30 días — sin contraseña que
-              recordar. Tienes contacto ilimitado con todas las reclutadoras, ATS Checker con IA
-              y LinkedIn Score con IA.
+              recordar. Entrando a la app…
             </p>
-
-            {downloadError && (
-              <div className="alert alert-error" style={{ width: '100%' }}>
-                <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                <span>{downloadError}</span>
-              </div>
-            )}
-
-            <button className="btn btn-outline w-full" onClick={handleDownload} disabled={downloading}>
-              {downloading ? <span className="spinner spinner-sm" /> : <Download size={16} />}
-              {downloading ? 'Descargando…' : 'Descargar directorio ahora (Excel)'}
-            </button>
-
-            <button className="btn btn-primary w-full" onClick={() => navigate('/app')}>
-              Entrar a la app <ArrowRight size={16} />
-            </button>
+            <div className="spinner spinner-sm" />
           </div>
         )}
 
