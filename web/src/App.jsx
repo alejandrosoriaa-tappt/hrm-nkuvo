@@ -17,6 +17,7 @@ import MembresiaPage from './pages/MembresiaPage.jsx'
 import DirectorioLandingPage from './pages/DirectorioLandingPage.jsx'
 import DirectorioGraciasPage from './pages/DirectorioGraciasPage.jsx'
 import PrivacidadPage from './pages/PrivacidadPage.jsx'
+import MetodologiaLinkedInPage from './pages/MetodologiaLinkedInPage.jsx'
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/directorio" element={<DirectorioLandingPage />} />
         <Route path="/directorio/gracias" element={<DirectorioGraciasPage />} />
         <Route path="/privacidad" element={<PrivacidadPage />} />
+        <Route path="/metodologia-linkedin" element={<MetodologiaLinkedInPage />} />
 
         {/* Protegidas — Layout hace el guard de sesión */}
         <Route path="/app" element={<Layout />}>
