@@ -102,6 +102,9 @@ export const hrmAPI = {
   // Descarga del directorio completo dentro de la app (requiere plan activo).
   // responseType: 'blob' porque es un archivo binario, no JSON.
   downloadDirectoryExcel: ()         => api.get('/api/hrm/directory/download', { responseType: 'blob' }),
+
+  // Panel interno de analítica (solo ADMIN_EMAILS) — devuelve 403 si no aplica.
+  getAdminStats:          ()         => api.get('/api/hrm/admin/stats'),
 }
 
 // ── Venta suelta del directorio ($99, landing pública sin cuenta) ──────────

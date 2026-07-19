@@ -87,6 +87,12 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 # correo en la lista, ven todo desbloqueado automáticamente.
 DEMO_EMAILS=demo1@nkuvo.com,demo2@nkuvo.com
 
+# Correos con acceso al panel interno de analítica (/app/admin): compras
+# confirmadas del directorio, ingresos, conversión checkout→pago, planes
+# activos. Deben tener cuenta normal (vía /signup o /directorio) — una vez
+# con ese correo en la lista, ese botón del menú deja de dar "No autorizado".
+ADMIN_EMAILS=tu-correo@nkuvo.com
+
 # SMTP (para envío de CVs por correo)
 SMTP_HOST=smtp.gmail.com       # o tu proveedor
 SMTP_PORT=587

@@ -15,6 +15,7 @@ import {
   checkUsageLimit,
   recordUsageEvent,
   AI_USAGE_MONTHLY_LIMIT,
+  isAdminEmail,
 } from '../lib/subscription.js'
 import { extractCvText } from '../lib/cvText.js'
 import { extractLinkedinText } from '../lib/linkedinText.js'
@@ -1166,6 +1167,54 @@ router.get('/subscription', async (req, res) => {
     return res.json({ ...(data || {}), status: 'free' })
   }
   res.json({ ...(data || {}), status: 'active', plan: data?.plan || 'demo' })
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// Admin — panel interno de analítica (/app/admin en el frontend). Solo
+// correos en ADMIN_EMAILS (Railway) pueden verlo. No sustituye Meta Events
+// Manager (eso mide tráfico/visitas) — esto mide compras y planes reales
+// directo de la BD, sin depender de que el pixel haya disparado.
+router.get('/admin/stats', async (req, res) => {
+  if (!isAdminEmail(req.user.email)) {
+    return res.status(403).json({ error: 'No autorizado' })
+  }
+
+  try {
+    const [
+      { count: paidCount },
+      { count: pendingCount },
+      { data: revenueRows },
+      { count: activeBundles },
+      { count: totalRecruiters },
+      { data: recentPurchases },
+    ] = await Promise.all([
+      supabase.from('hrm_directory_purchases').select('id', { count: 'exact', head: true }).eq('status', 'paid'),
+      supabase.from('hrm_directory_purchases').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('hrm_directory_purchases').select('amount').eq('status', 'paid'),
+      supabase.from('hrm_subscriptions').select('user_id', { count: 'exact', head: true })
+        .eq('status', 'active').gt('current_period_end', new Date().toISOString()),
+      supabase.from('hrm_recruiters').select('id', { count: 'exact', head: true }),
+      supabase.from('hrm_directory_purchases').select('email, created_at, status')
+        .order('created_at', { ascending: false }).limit(20),
+    ])
+
+    const revenue = (revenueRows || []).reduce((sum, r) => sum + (r.amount || 0), 0)
+    const totalOrders = (paidCount || 0) + (pendingCount || 0)
+    const conversionRate = totalOrders > 0 ? Math.round(((paidCount || 0) / totalOrders) * 100) : null
+
+    res.json({
+      paidCount: paidCount || 0,
+      pendingCount: pendingCount || 0,
+      revenue,
+      conversionRate,
+      activeBundles: activeBundles || 0,
+      totalRecruiters: totalRecruiters || 0,
+      recentPurchases: recentPurchases || [],
+    })
+  } catch (err) {
+    console.error('GET /admin/stats error:', err)
+    res.status(500).json({ error: err.message || 'Error generando estadísticas' })
+  }
 })
 
 export default router

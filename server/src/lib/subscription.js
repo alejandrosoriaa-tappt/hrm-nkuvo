@@ -15,6 +15,19 @@ function isDemoEmail(email) {
   return Boolean(email && demoEmails.includes(email.toLowerCase()))
 }
 
+/**
+ * Correos con acceso al panel de analítica interno (/app/admin, ver
+ * GET /api/hrm/admin/stats en hrm.js). Configurar ADMIN_EMAILS en Railway
+ * (mismo formato que DEMO_EMAILS, separado por comas).
+ */
+export function isAdminEmail(email) {
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean)
+  return Boolean(email && adminEmails.includes(email.toLowerCase()))
+}
+
 /** Máximo de usos mensuales de funciones de IA limitadas del plan (ATS rewrite, LinkedIn IA). */
 export const AI_USAGE_MONTHLY_LIMIT = Number(process.env.AI_USAGE_MONTHLY_LIMIT) || 5
 

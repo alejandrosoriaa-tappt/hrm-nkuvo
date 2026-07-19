@@ -13,6 +13,7 @@ import OportunidadesPage from './pages/OportunidadesPage.jsx'
 import NotasPage from './pages/NotasPage.jsx'
 import EtiquetasPage from './pages/EtiquetasPage.jsx'
 import ReportesPage from './pages/ReportesPage.jsx'
+import AdminReportesPage from './pages/AdminReportesPage.jsx'
 import ConfiguracionPage from './pages/ConfiguracionPage.jsx'
 import MembresiaPage from './pages/MembresiaPage.jsx'
 import DirectorioLandingPage from './pages/DirectorioLandingPage.jsx'
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="notas"           element={<NotasPage />} />
           <Route path="etiquetas"       element={<EtiquetasPage />} />
           <Route path="reportes"        element={<ReportesPage />} />
+          <Route path="admin"           element={<AdminReportesPage />} />
           <Route path="configuracion"   element={<ConfiguracionPage />} />
           <Route path="membresia"       element={<MembresiaPage />} />
         </Route>
